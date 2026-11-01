@@ -1016,7 +1016,7 @@ function kindOfLabel(el) {
   if (/画面/.test(e)) return "screen";
   if (/待機|一時停止/.test(e)) return "wait";
   if (/ソート|並べ替え/.test(e)) return "sort";
-  if (/フィルター|絞り込/.test(e)) return "filter";
+  if (/フィルタ|絞り込/.test(e)) return "filter";
   if (/変換/.test(e)) return "transform";
   if (/ロールバック/.test(e)) return "rollback";
   if (/カスタムエラー/.test(e)) return "error";
@@ -1118,7 +1118,8 @@ function parseMarkdownDoc(src) {
     if (!Number.isNaN(r.no)) idxByNo[r.no] = k;
     switch (kind) {
       case "start": {
-        s.startType = startTypeOf(ovText + "\n" + c); s.obj = obj || elShape || ""; s.when = whenOf(c); s.detail = startDetail(c.split("\n")[0]);
+        const mode = /起動方式[：:]\s*(.+)/.exec(ovText);   // 「起動方式」の行があればそれを優先する
+        s.startType = startTypeOf(mode ? mode[1] : ovText + "\n" + c); s.obj = obj || elShape || ""; s.when = whenOf(c); s.detail = startDetail(c.split("\n")[0]);
         const ps = [];
         for (const raw of String(r.body).split(/<br\s*\/?>/i)) {
           const m = /^\s*[・\-*]\s*(.*?)\s*→\s*([\s\S]*)$/.exec(raw); if (!m) continue;
