@@ -174,6 +174,13 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
 .btn-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
 .ai-tips{margin:0;padding-left:1.2em;font-size:12.5px;color:var(--muted);display:grid;gap:6px}
 .ai-tips b{color:var(--ink);font-weight:500}
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:16px;display:grid;gap:6px;justify-items:center;text-align:center;background:var(--card);transition:border-color .15s,background .15s}
+.drop>svg{width:28px;height:28px;color:var(--sf-blue)}
+.drop>span:first-of-type{font-weight:500}
+.drop .btn{width:auto}
+body.dragging .drop{border-color:var(--sf-blue);background:var(--sf-sky)}
+.drop-ov{position:fixed;inset:0;z-index:45;background:rgb(1 118 211/.12);border:3px dashed var(--sf-blue);display:grid;place-items:center;pointer-events:none}
+.drop-ov div{background:var(--card);color:var(--ink);padding:14px 20px;border-radius:var(--r);font-weight:700;box-shadow:0 10px 30px rgb(3 20 40/.25)}
 .fname{font-size:12px;font-family:var(--f-mono);color:var(--ink);word-break:break-all}
 
 /* ---------- ② の見出し ---------- */
@@ -392,7 +399,12 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
         <div class="wz">
           <div class="wz-h"><span class="wz-n">A</span><h3>ファイルを選ぶ（または貼り付ける）</h3></div>
           <p class="note">設計書（.md）を選びます。このツールの「3 Excelに出力」で保存した設計書も、ここから開いて続きを編集できます。</p>
-          <span class="btn file-btn"><svg viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14V13H2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>ファイルを選ぶ<input id="impFile" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain"></span>
+          <div class="drop" id="dropZone">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M4 15v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>ここにファイルをドラッグ＆ドロップ</span>
+            <span class="note">または</span>
+            <span class="btn file-btn"><svg viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14V13H2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>ファイルを選ぶ<input id="impFile" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain"></span>
+          </div>
           <span class="fname" id="impName">まだ選んでいません</span>
           <textarea id="impText" rows="7" class="code" aria-label="読み込む内容" placeholder="ファイルの中身がここに入ります。直接書いたり、貼り付けたりもできます。&#10;&#10;# フロー名&#10;## 処理フロー&#10;| # | 要素 | 内容 |&#10;|---|---|---|&#10;| 1 | 開始 | … |"></textarea>
         </div>
@@ -523,6 +535,7 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
 </main>
 
 <div id="toast" class="toast" hidden></div>
+<div id="dropOv" class="drop-ov" hidden><div>ここにドロップすると、設計書（.md）を読み込みます</div></div>
 <!-- 確認のポップアップ（ブラウザの confirm() は使えないため、画面内に出す） -->
 <div id="newConfirm" class="ov" hidden>
   <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="newConfirmTitle" aria-describedby="newConfirmMsg">
@@ -701,14 +714,23 @@ function graphOf(steps) {
   const stepLanes = new Set(lane.filter(x => x != null));
   return {n, out, lane, lanes, stepLanes, nBack: back.length, idx, main};
 }
-// 本線（正常系）：開始から、いちばん多くの段を通って下へ進む道筋。同じ長さなら上の段を選ぶ。
+// 本線（正常系）：決定では、最初に書いた結果（正常な場合）の先を本線にする。
+// それ以外（開始のパスなど）は、「終了」の段まで進む道筋のうち、いちばん多くの段を通るもの。同じ長さなら上の段を選ぶ。
+// 途中で「その場で終了」になる道筋（異常時の処理など）は、段が多くても本線にしない。
 // out[i] の to：段の番号（1〜）、-1 ＝ その場で終了、0 ＝ なし。上へ戻る線（ループなど）は数えない。
 function mainLine(out, n) {
-  const len = [], best = [];
+  const len = [], best = [], reach = [];   // reach[i]：段 i から「終了」の段まで進めるか
   for (let i = n; i >= 1; i--) {
-    let bl = 0, bj = 0;
-    for (const e of out[i] || []) if (e.to > i && e.type !== "fault" && (len[e.to] > bl || (len[e.to] === bl && e.to < bj))) { bl = len[e.to]; bj = e.to; }
-    len[i] = 1 + bl; best[i] = bj;
+    const es = (out[i] || []).filter(e => e.type !== "fault");
+    let bl = 0, bj = 0, br = !es.length;   // 行き先のない段（終了の段）はそれ自体がゴール
+    for (const e of es) {
+      if (e.to <= i) continue;
+      const r = reach[e.to], l = len[e.to];
+      if ((r && !br) || (r === br && (l > bl || (l === bl && e.to < bj)))) { br = r; bl = l; bj = e.to; }
+    }
+    const first = es.find(e => e.type === "out" && e.m === 0);   // 決定の最初の結果
+    if (first && first.to > i) { bj = first.to; bl = len[bj]; br = reach[bj]; }
+    len[i] = 1 + bl; best[i] = bj; reach[i] = br;
   }
   const main = new Set();
   for (let i = n ? 1 : 0; i && !main.has(i); i = best[i]) main.add(i);
@@ -1179,13 +1201,13 @@ function startTypeOf(t) {
   return "after";
 }
 function objAndRest(line) {   // 「Api名：オブジェクト／条件…」から、オブジェクトと残りを取り出す
-  let t = mdClean(line).replace(/^[A-Za-z_][\w.]*\s*[：:]\s*/, "");
+  let t = mdClean(line).replace(/^[A-Za-z_][\w.]*\s*[：:]\s*/, "").replace(/^(取得元|取得対象|対象|更新対象|作成対象|削除対象|オブジェクト)\s*[：:]\s*/, "");
   const m = /^([^：:／/、。\s]{1,40})\s*[：:／/]\s*([\s\S]*)$/.exec(t);
   if (m) return [m[1].replace(/[（(].*$/, "") || m[1], m[2].trim()];
   const v = /^(.{1,24}?)を(取得|作成|更新|削除)/.exec(t);
   return v ? [v[1].replace(/のレコード$/, ""), t.slice(v[0].length).replace(/^[\s、。]+/, "")] : ["", t];
 }
-// 文の一部（「割り当て：…」「社内ユーザー通知サブフロー」など）から段を作る
+// 文の一部（「割り当て：…」「ユーザー通知区分サブフロー」など）から段を作る
 function stepFromPhrase(ph) {
   const t = mdClean(ph).trim();
   const head = t.split(/[：:]/)[0];
@@ -1402,9 +1424,9 @@ const MD_GUIDE = `## 書き方（このセクションは読み込み時に無�
 - 「処理フロー」の表の1行が、Excelの1段（No.）になります。# の番号は上から 1, 2, 3… と振ってください。
 - 要素に書ける種類：開始／画面／アクション／サブフロー／割り当て／決定／ループ／ループ終了／コレクションソート／コレクションフィルター／変換／待機／レコードを取得／レコードを作成／レコードを更新／レコードを削除／ロールバック／カスタムエラー／終了
 - 図形に出す文字を決めたいときは「割り当て：ToDoをコレクションに追加」のように、要素の「：」の後ろに書きます。
-- 決定は、内容の1行目に判断する対象を **太字** で書き、続けて結果を「<br>・条件 → 4へ」の形で1つずつ書きます。最後の結果がデフォルト結果です。そこで終わる結果は「→ 終了」と書きます。
+- 決定は、内容の1行目に判断する対象を **太字** で書き、続けて結果を「<br>・条件 → 4へ」の形で1つずつ書きます。最初の結果（正常な場合）がまっすぐ下の本線に描かれ、2番目以降は横にそれます。最後の結果がデフォルト結果です。そこで終わる結果は「→ 終了」と書きます。
 - 決定以外は、何も書かなければ次の行（No.+1）へ進みます。別の行へ進むときは内容の最後に「→ 8へ」、そこで終わるときは「→ 終了」と書きます。
-- レコードを取得・作成・更新・削除は、内容の1行目を「オブジェクト名／条件」の形で書くと、左にオブジェクトの円柱を描きます。
+- レコードを取得・作成・更新・削除は、内容の1行目を「取得元：オブジェクト名／条件：〜」の形で書くと、左にオブジェクトの円柱を描きます。
 - サブフローは、内容の1行目にサブフロー名を **太字** で書きます。
 - 失敗したとき（フォールトパス）は、何も書かなければ「エラー通知 → 終了」を描きます。別の行へ進むときは「エラーの場合は、No.9へ進む」、描かないときは「フォールトパスなし」と書きます。
 - 開始でパスを分けるときは、開始の内容に「<br>・即時パス → 2へ<br>・非同期パス → 6へ」と書きます。
@@ -2042,12 +2064,24 @@ $("btnAi").onclick = () => saveFile("Salesforceフロー設計書_AI用プロン
 /* ---- 設計書ファイルを読み込む ---- */
 let impFrom = "";   // 読み込み元の表示名（ファイル名）。選んだだけでは上書きしない
 const setImportReady = () => { $("btnImport").disabled = !$("impText").value.trim(); };
-$("impFile").addEventListener("change", async ev => {
-  const f = ev.target.files[0]; if (!f) return;
+async function takeFile(f) {   // 選んだ・ドロップしたファイルを「設計書ファイルを読み込む」の入力欄に入れる（まだ上書きしない）
+  if (!f) return;
+  if (!/\.(md|markdown|txt)$/i.test(f.name) && !/^text\//.test(f.type)) { toast("設計書（.md）のファイルを選んでください"); return; }
+  goStep(1); setMode("file");
   $("impText").value = await f.text(); impFrom = f.name;
   $("impName").textContent = f.name; $("impMsg").innerHTML = "";
-  setImportReady(); ev.target.value = "";
-});
+  setImportReady(); $("btnImport").focus();
+  toast(`${f.name} を入れました。「この内容で図を作る」を押すと反映します`);
+}
+$("impFile").addEventListener("change", async ev => { await takeFile(ev.target.files[0]); ev.target.value = ""; });
+// ドラッグ＆ドロップ：ページのどこに落としても読み込む（ファイル以外のドラッグは無視）
+let dragDepth = 0;
+const isFileDrag = ev => [...(ev.dataTransfer?.types || [])].includes("Files");
+const setDragging = on => { document.body.classList.toggle("dragging", on); $("dropOv").hidden = !on; };
+window.addEventListener("dragenter", ev => { if (!isFileDrag(ev)) return; ev.preventDefault(); dragDepth++; setDragging(true); });
+window.addEventListener("dragover", ev => { if (isFileDrag(ev)) ev.preventDefault(); });
+window.addEventListener("dragleave", ev => { if (!isFileDrag(ev)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) setDragging(false); });
+window.addEventListener("drop", ev => { if (!isFileDrag(ev)) return; ev.preventDefault(); dragDepth = 0; setDragging(false); takeFile(ev.dataTransfer.files[0]); });
 $("impText").addEventListener("input", () => { impFrom = "貼り付けた設計書"; $("impName").textContent = "貼り付けたテキスト"; setImportReady(); });
 $("btnImport").onclick = () => runImport($("impText").value, impFrom || "設計書");
 $("btnTpl").onclick = () => saveFile("Salesforceフロー設計書_テンプレート.md", new Blob([exportMarkdown(sampleState(), true)], {type: "text/markdown"}));
@@ -2111,6 +2145,8 @@ bindGlobals(); bindAi(); setMode(state.mode || "ai"); goStep(1); renderSteps(); 
 - 設計書はお客様（Salesforce未経験者）が読みます。社内の略語や独自ルールの番号（例：「区分A」「共通設計 6.」）は使わず、何が起きたときの処理かを、ふつうの言葉で書いてください。
 - 項目・変数・条件を書くときは、すぐ後ろに日本語の名前や意味を（）で付けます。例：`{!$Record.積算担当者__c}`（積算担当者）、`varT_NotifyUserIds`（通知先ユーザー）、`資材担当グループ__c = {!$Record.資材担当グループ__c}`（資材担当グループが同じ）。項目のAPI名はあとで英語の名前に置き換えるため、日本語の名前がないとお客様が読めなくなります。ただし、「件名 ＝ `varT_Title`」のように左に日本語の名前があるときは付けなくてかまいません。
 - `IsActive = true` は「有効なユーザー」、null は「空」、AND は「かつ」、OR は「または」のように、ふつうの言葉で書きます。
+- 「〇日後」は「3日後（72時間）」のように時間も添えます。スケジュール済みパスは営業日ではなく時間で数えるため、「営業日ではなく、時間で数える」と書きます。
+- 正常に進む流れ（本線）と、うまくいかないとき（異常）の流れを分けて書きます。たとえば宛先がなくてメールを送れない場合は、決定から分かれた先で「〜できなかった旨」を知らせる処理として書き、本線と同じ書き方にしません。
 - 本当に確認が必要な業務の仕様（例：「辞退したものも対象に含めるか」「もう一度通知してよいか」）は、「（要確認）」を付けて設計書に残します。後から確認するために使います。社内で確認すれば済む技術的なことは、設計書に書かず「設計のポイント」に書きます。
 - 件名・本文は「（文面は要確認）」「（別途検討）」とせず、「〜した旨の件名・本文」のように中身がわかる書き方にします。
 - 項目のAPI名がわからないときは、それらしい名前に「__c」を付けてください（実際の名前には、あとでツールで置き換えます。設計書に「仮」とは書きません）。
@@ -2153,9 +2189,11 @@ bindGlobals(); bindAi(); setMode(state.mode || "ai"); goStep(1); renderSteps(); 
 - 決定：1行目に判断する内容を **太字** で書き、判定に使う項目は「（判定：`{!$Record.項目__c}`）」として1行目に添えます。
   続けて結果を「<br>・設定あり → 3へ<br>・未設定 → 11へ」の形で1つずつ書きます。
   ・結果の名前（「→」の左）は「設定あり」「1件以上」「0件」「それ以外」のような短い言葉だけにし、かっこや変数名を入れないでください。
+  ・結果は、正常な場合を最初に書きます（図では最初の結果がまっすぐ下の本線になり、2番目以降は横にそれます）。
   ・最後の結果がデフォルト結果になります。結果は2つ以上書きます。
 - ループ：「ループ」の行と「ループ終了」の行で、繰り返す処理を挟みます。ループ終了の内容は「—」で構いません。
-- レコードを取得／作成／更新／削除：内容の1行目を「`API名`：オブジェクト名／条件／並び順／件数／取得項目」のように「／」区切りで書きます。
+- レコードを取得／作成／更新／削除：内容の1行目を「`API名`：取得元：オブジェクト名／条件：〜／並び順：〜／件数：〜／取得項目：〜」のように、見出しを付けて「／」で区切って書きます（作成・更新・削除は「取得元」の代わりに「作成対象」「更新対象」「削除対象」）。「／」は区切りで、条件の「かつ」ではありません。
+- 条件の項目は、`ユーザー.資材担当グループ__c = {!$Record.資材担当グループ__c}` のように「オブジェクト名.項目」の形で書き、どのオブジェクトの項目かがわかるようにします。
 - 割り当て：何に何を入れるかを書きます。格納先を図に出すときは「格納先：コレクション／「通知先ユーザー」」と書きます。
 - サブフロー：内容の1行目にサブフロー名を **太字** で書き、続けて「<br>・入力 ＝ 値」の形で受け渡す値を書きます。呼び出すサブフローの入力変数は、すべて値を渡します（私が伝えた入力が4つなら4つとも。例：通知先・件名・本文・対象レコードId）。
 - アクション：メール送信などの標準アクション名を **太字** で書き、送信元・宛先・件名・本文を書きます。
@@ -2233,7 +2271,7 @@ bindGlobals(); bindAi(); setMode(state.mode || "ai"); goStep(1); renderSteps(); 
 | # | 要素 | 内容 |
 |---|---|---|
 | 1 | 開始 | 商談のフェーズが「Closed Won」に更新されたときに処理を開始する<br>・即時パス → 終了（処理なし）<br>・非同期パス → 2へ |
-| 2 | レコードを取得：商談チームを取得 | `Get_TeamMembers`：商談チームメンバー（OpportunityTeamMember）／`OpportunityId = {!$Record.Id}`（この商談のメンバー）／全件／取得項目：UserId（ユーザー） |
+| 2 | レコードを取得：商談チームを取得 | `Get_TeamMembers`：取得元：商談チームメンバー（OpportunityTeamMember）／条件：`商談チームメンバー.OpportunityId = {!$Record.Id}`（この商談のメンバー）／件数：全件／取得項目：UserId（ユーザー） |
 | 3 | 決定 | **商談チームの取得件数**（判定：`Get_TeamMembers`（取得した商談チームメンバー））<br>・1件以上 → 5へ<br>・0件 → 4へ |
 | 4 | 割り当て：所有者を通知先に設定 | `varT_NotifyUserIds`（通知先ユーザー） に `{!$Record.OwnerId}`（商談の所有者） を追加 → 8へ |
 | 5 | ループ | `Loop_Member`：商談チームメンバーの件数分 |
@@ -2259,6 +2297,7 @@ bindGlobals(); bindAi(); setMode(state.mode || "ai"); goStep(1); renderSteps(); 
 - どの行も、開始から矢印をたどって到達できる
 - 「ループ」と「ループ終了」の数が同じ
 - 決定の結果が2つ以上あり、結果の名前にかっこや変数名が入っていない
+- 決定の結果は、正常な場合が最初に書いてある
 - ループの中に、レコードの取得・作成・更新・削除、メール送信、サブフローがない
 - 起動方式で使えない要素を使っていない（保存前でDML・アクション・サブフローを使っていない など）
 - 起動方式と開始の書き方が食い違っていない（スケジュールトリガーフローなのにスケジュール済みパス・即時パス・トリガー順序を書いていない、など）
