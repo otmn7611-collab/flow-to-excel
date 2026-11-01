@@ -3,7 +3,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* 配置：上＝紺の見出し帯。PC＝左に入力、右にプレビュー（追従）。スマホ＝タブで切替。下＝作成ボタンの帯。
+/* 配置：上＝紺の見出し帯。PC＝左に入力、右にプレビュー（追従）を半分ずつ。スマホ＝編集／プレビューをタブで切替。
+   入力側は「① 作り方 → ② 確認・修正 → ③ 出力」のタブで切り替える。
    色：Salesforceの紺・青（操作・見出し）× Excelの緑（作成・シート）。要素の種類はFlow Builderの色分けに合わせる。 */
 :root{
   --bg:#F3F5F8; --card:#FFFFFF; --ink:#181B21; --muted:#5C6575; --line:#D8DEE6; --soft:#EEF2F6;
@@ -34,12 +35,12 @@
 /* ---------- 土台 ---------- */
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.65;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.65;padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
 h1,h2,h3{margin:0;text-wrap:balance;font-weight:700}
 button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--sf-blue);outline-offset:2px}
 .gutter{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.wrap{max-width:1480px;margin:0 auto}
+.wrap{max-width:2400px;margin:0 auto}
 
 /* ---------- 見出し帯 ---------- */
 .masthead{background:var(--sf-navy);color:#fff;position:relative}
@@ -60,7 +61,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .app>section{min-width:0}
 @media (min-width:1100px){
   .tabs{display:none}
-  .app{grid-template-columns:minmax(0,520px) minmax(0,1fr);align-items:start}
+  .app{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}   /* 入力とプレビューを半分ずつ */
   .app>section{display:block!important}
   #pane-preview{position:sticky;top:14px}
 }
@@ -115,6 +116,7 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
 .unit input{flex:1}
 .unit em{font-style:normal;font-size:12px;color:var(--muted);white-space:nowrap}
 .note{font-size:12px;color:var(--muted);margin:0}
+.ok-msg{font-size:12.5px;color:var(--xl-green);background:var(--xl-mint);padding:7px 10px;border-radius:var(--r-sm);margin:0}
 .warn{font-size:12.5px;color:var(--warn);background:var(--warn-bg);padding:7px 10px;border-radius:var(--r-sm);margin:0}
 .gwarn{display:grid;gap:4px}
 .gwarn:empty{display:none}
@@ -134,19 +136,60 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:2px 9px;border-radius:999px;background:var(--soft);color:var(--muted)}
 .chip.ok{background:var(--xl-mint);color:var(--xl-green)}
 
-/* ---------- 読み込みの3ステップ ---------- */
-.steps3{display:grid;gap:10px;counter-reset:st}
-@media (min-width:640px){.steps3{grid-template-columns:repeat(2,minmax(0,1fr))}.st.wide{grid-column:1/-1}}
-.st{border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;display:grid;gap:8px;align-content:start;background:var(--bg)}
-.st h3{font-size:13.5px;display:flex;gap:8px;align-items:center}
-.st h3::before{counter-increment:st;content:counter(st);width:20px;height:20px;border-radius:50%;background:var(--sf-blue);color:#fff;font:500 11px/20px var(--f-mono);text-align:center;flex:none}
-.st p{margin:0;font-size:12px;color:var(--muted)}
-.st.done h3::before{content:"✓";background:var(--xl-green)}
-.st .btn{width:100%}
-.st textarea{background:var(--card)}
-.btn-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:8px}
+/* ---------- 進み具合 ---------- */
+.progress{margin:0 0 14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.progress button{display:flex;gap:8px;align-items:center;padding:9px 12px;border-radius:var(--r-sm);background:var(--card);border:1px solid var(--line);color:var(--muted);font-size:13px;font-weight:500;min-width:0;cursor:pointer;text-align:left}
+.progress button:hover{border-color:var(--sf-blue)}
+.progress span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.progress b{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--soft);color:var(--muted);font:500 12px/1 var(--f-mono)}
+.progress [aria-selected="true"]{border-color:var(--sf-blue);background:var(--sf-sky);color:var(--ink);box-shadow:inset 0 -3px 0 var(--sf-blue)}
+.progress [aria-selected="true"] b{background:var(--sf-blue);color:#fff}
+.progress .done b{background:var(--xl-green);color:#fff;font-size:0}
+.progress .done b::after{content:"✓";font-size:12px}
+@media (max-width:420px){.progress button{flex-direction:column;gap:2px;text-align:center;font-size:11.5px;padding:7px 4px}}
+
+/* ---------- 作り方の選択 ---------- */
+.modes{display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:640px){.modes{grid-template-columns:1fr}}
+.mode{position:relative;display:grid;grid-template-columns:36px minmax(0,1fr);gap:0 10px;align-items:center;text-align:left;padding:12px;border:1.5px solid var(--line);border-radius:var(--r);background:var(--bg);cursor:pointer}
+@media (min-width:641px){.mode{grid-template-columns:1fr;text-align:center;justify-items:center;gap:4px;padding:14px 10px}}
+.mode:hover{border-color:var(--sf-blue)}
+.mode[aria-selected="true"]{border-color:var(--sf-blue);background:var(--sf-sky);box-shadow:inset 0 0 0 1px var(--sf-blue)}
+.mode-ic{grid-row:span 2;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--card);color:var(--sf-blue);border:1px solid var(--line)}
+@media (min-width:641px){.mode-ic{grid-row:auto}}
+.mode-ic svg{width:20px;height:20px}
+.mode b{font-size:13.5px;line-height:1.4}
+.mode small{font-size:11.5px;color:var(--muted)}
+.rec{position:absolute;top:-9px;right:10px;font-style:normal;font-size:10.5px;font-weight:700;background:var(--xl-green);color:#fff;padding:1px 8px;border-radius:999px}
+.panel{display:grid;gap:12px}
+.wz{border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;display:grid;gap:8px;background:var(--bg)}
+.wz textarea,.wz input[type=text]{background:var(--card)}
+.wz-h{display:flex;gap:8px;align-items:center}
+.ex-row{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.ex-row .btn{flex:none}
+.wz-h h3{font-size:14px}
+.wz-n{flex:none;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;background:var(--sf-navy);color:#fff;font:500 12px/1 var(--f-mono)}
+.wz details.more{background:var(--card)}
+.btn.big{padding:11px 16px;font-size:14.5px;width:100%}
+.btn-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.ai-tips{margin:0;padding-left:1.2em;font-size:12.5px;color:var(--muted);display:grid;gap:6px}
+.ai-tips b{color:var(--ink);font-weight:500}
 .fname{font-size:12px;font-family:var(--f-mono);color:var(--ink);word-break:break-all}
 
+/* ---------- ② の見出し ---------- */
+.sec-h{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:2px 10px;align-items:center;margin:4px 2px 12px}
+.sec-h .num{width:24px;height:24px;border-radius:50%;background:var(--badge);color:#fff;font:500 12px/24px var(--f-mono);text-align:center}
+.sec-h h2{font-size:16px}
+.sec-h p{grid-column:2/-1;margin:0;font-size:12px;color:var(--muted)}
+
+/* ---------- ③ 出力 ---------- */
+.out{border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;display:grid;gap:6px;align-content:space-between;background:var(--bg)}
+.out b{font-size:14px}
+.out p{margin:0;font-size:12px;color:var(--muted)}
+.out .hint{font-size:12px;color:var(--muted);text-align:center}
+.out.main{background:var(--xl-mint);border-color:color-mix(in srgb,var(--xl-green) 35%,var(--line))}
+.out.main input[type=text]{background:var(--card)}
+#sec2>.btn.big{margin-top:2px}
 
 /* ---------- 保存・読み込みの一覧 ---------- */
 .acts{display:grid}
@@ -225,15 +268,10 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
 #pv .ah{fill:var(--stroke)}
 #pv .dsc{font-family:var(--f-ui);font-size:11.5px;line-height:1.45;color:var(--ink);padding:5px 7px;white-space:pre-wrap;overflow:hidden;height:100%;word-break:break-all}
 
-/* ---------- 作成の帯・通知 ---------- */
-.bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgb(3 45 96/.08)}
-.bar .wrap{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-block:10px calc(10px + env(safe-area-inset-bottom,0px))}
-.bar .hint{font-size:12.5px;color:var(--muted);flex:1;min-width:0}
-.bar .btn.green{padding:10px 20px;font-size:15px}
+/* ---------- 通知 ---------- */
 .btn.clear{color:var(--muted)}
 .btn.clear:hover{color:#BA0517;border-color:#BA0517}
-@media (max-width:520px){.bar .hint{flex-basis:100%;order:-1}.bar .btn.green{flex:1}body{padding-bottom:calc(124px + env(safe-area-inset-bottom,0px))}.toast{bottom:calc(132px + env(safe-area-inset-bottom,0px))}}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));background:var(--sf-navy);color:#fff;padding:10px 14px;border-radius:var(--r-sm);font-size:13px;z-index:30;display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--sf-navy);color:#fff;padding:10px 14px;border-radius:var(--r-sm);font-size:13px;z-index:30;display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px)}
 .toast button{background:transparent;border:1px solid currentColor;color:inherit;border-radius:4px;padding:2px 8px;cursor:pointer}
 .ov{position:fixed;inset:0;background:rgb(3 20 40/.5);z-index:40;display:grid;place-items:center;padding:16px}
 .ov>div{background:var(--card);border-radius:var(--r);padding:16px;width:min(720px,100%);display:grid;gap:10px}
@@ -252,7 +290,7 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
     </svg>
     <div>
       <h1>Salesforceフロー設計書作成ツール</h1>
-      <p>要素と行き先を入力すると、フロー図と処理内容を描いたExcelを作ります。分岐した先は右の列に描きます。</p>
+      <p>AI・設計書・画面入力から、フロー図と処理内容を描いたExcelを作ります。① 作り方を選ぶ → ② 確認・修正 → ③ Excelに出力 の順に進めます。</p>
     </div>
   </div>
 </header>
@@ -264,67 +302,159 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
 <main class="app wrap gutter">
 <section id="pane-edit">
 
-  <div class="card">
-    <div class="card-h"><span class="num">1</span><h2>設計書から読み込む</h2><small>任意・入力の手間を省きます</small></div>
+  <!-- 手順のタブ：① 作り方 → ② 確認・修正 → ③ 出力。終わった手順には ✓ を付ける -->
+  <div class="progress" id="progress" role="tablist" aria-label="作る手順">
+    <button role="tab" id="pg1" data-step="1" aria-controls="sec1"><b>1</b><span>作り方を選ぶ</span></button>
+    <button role="tab" id="pg2" data-step="2" aria-controls="sec2"><b>2</b><span>確認・修正</span></button>
+    <button role="tab" id="pg3" data-step="3" aria-controls="sec3"><b>3</b><span>Excelに出力</span></button>
+  </div>
+
+  <!-- ===== ① 作り方を選ぶ ===== -->
+  <div class="card step-pane" id="sec1" role="tabpanel" aria-labelledby="pg1">
+    <div class="card-h"><span class="num">1</span><h2>作り方を選ぶ</h2></div>
     <div class="card-b">
-      <div class="steps3">
-        <div class="st" id="st1">
-          <h3>テンプレート</h3>
-          <p>記入例と書き方の説明つきのマークダウンです。これを書き換えて設計書を作ります。</p>
-          <button class="btn" id="btnTpl"><svg viewBox="0 0 16 16"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>ダウンロード</button>
+      <div class="modes" role="tablist" aria-label="作り方">
+        <button class="mode" role="tab" data-mode="ai" id="mode-ai" aria-controls="panel-ai">
+          <span class="mode-ic"><svg viewBox="0 0 24 24"><path d="M12 2.5l2 5.2 5.2 2-5.2 2L12 17l-2-5.3-5.2-2 5.2-2zM18.5 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+          <b>AIに作ってもらう</b><em class="rec">おすすめ</em>
+          <small>条件を入力 → AIに貼るだけ</small>
+        </button>
+        <button class="mode" role="tab" data-mode="file" id="mode-file" aria-controls="panel-file">
+          <span class="mode-ic"><svg viewBox="0 0 24 24"><path d="M6 2.5h8l4.5 4.5v14.5H6zM14 2.5V7h4.5M9 12h6M9 15.5h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+          <b>設計書ファイルを読み込む</b>
+          <small>書いてある設計書（.md）から</small>
+        </button>
+        <button class="mode" role="tab" data-mode="manual" id="mode-manual" aria-controls="panel-manual">
+          <span class="mode-ic"><svg viewBox="0 0 24 24"><path d="M4 20l1-4.5L16 4.5l3.5 3.5L8.5 19zM14 7l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+          <b>画面で1つずつ作る</b>
+          <small>処理を1つずつ追加して</small>
+        </button>
+      </div>
+
+      <!-- AIに作ってもらう -->
+      <div class="panel" id="panel-ai" role="tabpanel" aria-labelledby="mode-ai">
+        <div class="wz">
+          <div class="wz-h"><span class="wz-n">A</span><h3>作りたいフローを入力する</h3></div>
+          <div class="ex-row"><p class="note">★の3つだけで作れます。わかる範囲で、ふだんの言葉で書いてください。薄い文字は、サンプルフロー（商談が成立したらToDoを作る）の場合の書き方です。</p><button class="btn sm" id="btnAiEx" title="サンプルフローの場合の記入例を、入力欄に入れます">記入例を入れる</button></div>
+          <label class="f"><span>★ 対象オブジェクト</span><input type="text" data-ai="obj"></label>
+          <label class="f"><span>★ 起動のきっかけ</span><input type="text" data-ai="trigger"></label>
+          <label class="f"><span>★ やりたいこと（誰に・何を・どうする）</span><textarea rows="3" data-ai="want"></textarea></label>
+          <details class="sub more">
+            <summary><span class="sub-t">もっと詳しく伝える</span><small>任意・書くほど設計が正確に</small><span class="tw">›</span></summary>
+            <div class="sub-b">
+              <label class="f"><span>条件で分けたいこと</span><textarea rows="2" data-ai="branch"></textarea></label>
+              <label class="f"><span>うまくいかないときの扱い</span><textarea rows="2" data-ai="fail"></textarea></label>
+              <label class="f"><span>使う項目（わかる範囲で）</span><input type="text" data-ai="fields"></label>
+              <label class="f"><span>使う共通処理（サブフロー）</span><input type="text" data-ai="sub"></label>
+              <label class="f"><span>決まっていること・気になること</span><textarea rows="2" data-ai="memo"></textarea></label>
+              <label class="f"><span>ファイル名</span><input type="text" data-ai="file"></label>
+            </div>
+          </details>
         </div>
-        <div class="st" id="st2">
-          <h3>ファイルを選ぶ</h3>
-          <p>書いた設計書（.md）か、マーメイドのコード（.mmd）を選びます。</p>
-          <span class="btn file-btn"><svg viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14V13H2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>ファイルを選ぶ<input id="impFile" type="file" accept=".md,.mmd,.markdown,.txt,text/markdown,text/plain"></span>
-          <span class="fname" id="impName">まだ選んでいません</span>
+        <div class="wz">
+          <div class="wz-h"><span class="wz-n">B</span><h3>AIに送る</h3></div>
+          <p class="note">ボタンを押すと、AIへの指示（Salesforceの設計ルールつき）と入力した条件を、まとめてコピーします。ChatGPT・Gemini・Claude などの<b>新しいチャット</b>に貼り付けて送ってください。</p>
+          <button class="btn blue big" id="btnAiCopy"><svg viewBox="0 0 16 16"><path d="M5 5V2h9v9h-3M2 5h9v9H2z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>AIに送る文をコピー</button>
+          <div id="aiMsg" class="gwarn"></div>
         </div>
-        <div class="st wide" id="st3">
-          <h3>反映する</h3>
-          <p>選んだファイルの中身がここに入ります。直接書いたり、貼り付けたりもできます。反映すると、フロー名・概要・段・備考を上書きします（直後なら元に戻せます）。</p>
-          <textarea id="impText" rows="7" class="code" aria-label="読み込む内容" placeholder="# フロー名&#10;## 処理フロー&#10;| # | 要素 | 内容 |&#10;|---|---|---|&#10;| 1 | 開始 | … |&#10;&#10;または&#10;flowchart TD&#10;  A([開始]) --> B{件数は1件以上？}"></textarea>
-          <div class="btn-pair">
-            <button class="btn" id="btnSample" title="サンプルのフローをテキストボックスに入れて、反映します"><svg viewBox="0 0 16 16"><path d="M8 2l5.5 4.5L8 11 2.5 6.5zM8 11v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>サンプルフロー</button>
-            <button class="btn blue" id="btnImport" disabled>反映する</button>
+        <div class="wz">
+          <div class="wz-h"><span class="wz-n">C</span><h3>AIの回答を貼り付ける</h3></div>
+          <p class="note">AIの回答を<b>まるごと</b>コピーして貼り付けます（前後の説明文が入っていても大丈夫です）。</p>
+          <textarea id="aiAnswer" rows="6" class="code" aria-label="AIの回答" placeholder="ここにAIの回答を貼り付け"></textarea>
+          <button class="btn blue big" id="btnAiImport" disabled>この内容で図を作る</button>
+        </div>
+        <details class="sub tips">
+          <summary><span class="sub-t">うまくいかないとき・もっと便利に使うには</span><span class="tw">›</span></summary>
+          <div class="sub-b">
+            <ul class="ai-tips">
+              <li><b>表ではなく図のコードや文章で返ってきた</b>：AIに「表の形式で出し直して」と送ります。</li>
+              <li><b>回答に [1] のような番号が混ざった</b>：消してから貼り付けます。</li>
+              <li><b>一部だけ直したい</b>：同じチャットで「No.4の条件を〜にして」のように番号を指定して頼み、出し直された回答を貼り付けます。</li>
+              <li><b>項目一覧などの資料がある</b>：AIに一緒に添付すると、項目名の推測が減ります。</li>
+              <li><b>何本も作る</b>：下の「AI用プロンプト」をダウンロードして、Gemini の Gem、ChatGPT の GPTs、Claude のプロジェクトなどの指示に登録しておくと、以降は条件だけを送れば作ってくれます。</li>
+              <li>AIの設計は<b>下書き</b>です。業務の条件・項目名・制限の考え方は、必ず人が確認してください。</li>
+            </ul>
+            <div class="row"><button class="btn sm" id="btnAi">AI用プロンプトをダウンロード</button><span class="note">指示文だけのファイル（.md）</span></div>
           </div>
-          <p class="note">「サンプルフロー」は、記入例のフロー（商談の成立時にToDoを作成）をテキストボックスに入れて反映します。書き方の見本にどうぞ。</p>
+        </details>
+      </div>
+
+      <!-- 設計書ファイルを読み込む -->
+      <div class="panel" id="panel-file" role="tabpanel" aria-labelledby="mode-file" hidden>
+        <div class="wz">
+          <div class="wz-h"><span class="wz-n">A</span><h3>ファイルを選ぶ（または貼り付ける）</h3></div>
+          <p class="note">設計書（.md）を選びます。このツールの「3 Excelに出力」で保存した設計書も、ここから開いて続きを編集できます。</p>
+          <span class="btn file-btn"><svg viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14V13H2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>ファイルを選ぶ<input id="impFile" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain"></span>
+          <span class="fname" id="impName">まだ選んでいません</span>
+          <textarea id="impText" rows="7" class="code" aria-label="読み込む内容" placeholder="ファイルの中身がここに入ります。直接書いたり、貼り付けたりもできます。&#10;&#10;# フロー名&#10;## 処理フロー&#10;| # | 要素 | 内容 |&#10;|---|---|---|&#10;| 1 | 開始 | … |"></textarea>
+        </div>
+        <div class="wz">
+          <div class="wz-h"><span class="wz-n">B</span><h3>図にする</h3></div>
+          <button class="btn blue big" id="btnImport" disabled>この内容で図を作る</button>
+          <p class="note">今の内容（フロー名・概要・処理・備考）は置き換わります。直後なら「元に戻す」で戻せます。</p>
+        </div>
+        <div class="row"><button class="btn sm" id="btnTpl">書き方の見本（テンプレート）をダウンロード</button></div>
+      </div>
+
+      <!-- 画面で1つずつ作る -->
+      <div class="panel" id="panel-manual" role="tabpanel" aria-labelledby="mode-manual" hidden>
+        <p class="note">「2 確認・修正」で、処理を1つずつ追加して作ります。初めての方は、まずサンプルを見ると作り方がわかります。</p>
+        <div class="btn-two">
+          <button class="btn" id="btnSample"><svg viewBox="0 0 16 16"><path d="M8 2l5.5 4.5L8 11 2.5 6.5zM8 11v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>サンプルを表示</button>
+          <button class="btn" id="btnBlank">空の状態から始める</button>
         </div>
       </div>
       <div id="impMsg" class="gwarn"></div>
     </div>
   </div>
 
+  <!-- ===== ② 確認・修正 ===== -->
+  <div class="step-pane" id="sec2" role="tabpanel" aria-labelledby="pg2" hidden>
+  <div class="sec-h">
+    <span class="num">2</span><h2>確認・修正</h2>
+    <button class="btn sm clear" id="btnNew" aria-haspopup="dialog" title="入力内容を消して、最初から作り直します"><svg viewBox="0 0 16 16"><path d="M3 4h10M6 4V2h4v2M4 4l1 10h6l1-10" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>クリア</button>
+    <p>プレビュー（PCは右、スマホは上の「プレビュー」）で図を確認し、直したいところをここで直します。</p>
+  </div>
   <div class="card">
-    <div class="card-h"><span class="num">2</span><h2>フロー名・概要</h2></div>
+    <div class="card-h"><h2>フロー名・概要</h2></div>
     <div class="card-b">
       <label class="f"><span>フロー名（Excelの1行目に表示）</span><input id="g-name" type="text" data-g="name"></label>
       <label class="f"><span>概要（Excelの2行目に表示）</span><textarea id="g-summary" rows="3" data-g="summary"></textarea></label>
-      <label class="f"><span>出力ファイル名（空欄なら「フロー名_フロー設計書.xlsx」）</span><input id="g-file" type="text" data-g="file"></label>
     </div>
   </div>
-
   <div class="card">
-    <div class="card-h"><span class="num">3</span><h2>処理フロー</h2><small>1段＝Excelの1段（No.）</small></div>
+    <div class="card-h"><h2>処理フロー</h2><small>1つの処理＝Excelの1段（No.）</small></div>
     <div class="card-b">
       <div id="sampleNote"></div>
       <div id="gwarn" class="gwarn"></div>
       <div id="steps" class="stepsList"></div>
     </div>
   </div>
-
   <div class="card">
-    <div class="card-h"><span class="num">4</span><h2>備考</h2><small>表の下に1行ずつ（空欄なら出しません）</small></div>
+    <div class="card-h"><h2>備考</h2><small>表の下に1行ずつ（空欄なら出しません）</small></div>
     <div class="card-b">
       <textarea id="g-bullets" rows="4" data-g="bullets" placeholder="1行が1項目になります"></textarea>
     </div>
   </div>
+  <button class="btn blue big" data-go="3">次へ：Excelに出力 →</button>
+  </div>
 
-  <div class="card" id="settings">
-    <div class="card-h"><span class="num">5</span><h2>設定</h2><small>セルの大きさ・保存・読み込み</small></div>
+  <!-- ===== ③ Excelに出力 ===== -->
+  <div class="card step-pane" id="sec3" role="tabpanel" aria-labelledby="pg3" hidden>
+    <div class="card-h"><span class="num">3</span><h2>Excelに出力</h2></div>
     <div class="card-b">
-      <details class="sub" id="gridBox">
-        <summary><span class="sub-t">1段分のセル</span><small id="gridSum">フロー図を描くセルの大きさ</small><span class="tw">›</span></summary>
+      <div class="out main">
+        <b>Excelを作成</b>
+        <p>フロー図と処理内容を描いたExcel（.xlsx）を保存します。</p>
+        <label class="f"><span>ファイル名（空欄なら「フロー名_フロー設計書.xlsx」）</span><input id="g-file" type="text" data-g="file"></label>
+        <button class="btn green big" id="btnGen"><svg viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5 5.5l3 5m0-5-3 5M10 6h3M10 8h3M10 10h3" stroke="currentColor" stroke-width="1.3"/></svg>Excelを作成</button>
+        <span class="hint" id="genHint"></span>
+      </div>
+
+      <details class="sub" id="settings">
+        <summary><span class="sub-t">セルの設定</span><small id="gridSum"></small><span class="tw">›</span></summary>
         <div class="sub-b">
+          <p class="note">Excelで、図と処理内容を<b>どの大きさのセルに描くか</b>の設定です。ふつうは変えなくて大丈夫です。変えるとプレビューにもすぐ反映されます。</p>
       <div class="dim">
         <h3>幅 <output id="sumW"></output></h3>
         <div class="grid2">
@@ -349,46 +479,19 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
       <p class="note">図は指定したセルの幅にちょうど収まるように縮めて描きます。分岐が多くて図形や文字が小さくなるときは、セルの数（列数）を増やしてください。</p>
       <div id="gridWarn" class="gwarn"></div>
       <div class="row"><button class="btn sm" id="gridReset">初期値に戻す</button><span class="note">初期値：幅 3.38文字×40列、高さ 21pt×5行、処理内容 15列</span></div>
-</div>
+        </div>
       </details>
-      <p class="note">入力内容はこのブラウザに自動で残ります。別のPCや他の人に渡すときは、下のファイルを使います。</p>
-      <div class="grp">
-        <h3 class="grp-h"><span class="tag">.json</span>定義ファイル <small>このツールで続きを編集するためのファイル</small></h3>
-        <div class="acts">
-          <div class="act">
-            <span class="ic"><svg viewBox="0 0 16 16"><path d="M3 2h8l2 2v10H3zM5 2v4h6V2M5 14v-4h6v4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
-            <b>保存する</b>
-            <p>入力内容とセルの設定をまるごと1つのファイルに保存します。別のPCで続きを作るときや、他の人に渡すときに使います。</p>
-            <button class="btn" id="btnSaveJson">保存</button>
-          </div>
-          <div class="act">
-            <span class="ic"><svg viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14V13H2z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
-            <b>読み込む</b>
-            <p>保存した定義ファイルを開いて、続きから編集します。今の入力内容は置き換わります。</p>
-            <span class="btn file-btn">開く<input id="jsonFile" type="file" accept=".json,application/json"></span>
-          </div>
-        </div>
-      </div>
-      <div class="grp">
-        <h3 class="grp-h"><span class="tag g">.md</span>マークダウン <small>設計書として残す・ほかの文書に貼るためのもの</small></h3>
-        <div class="acts">
-          <div class="act">
-            <span class="ic g"><svg viewBox="0 0 16 16"><path d="M2 3h12v10H2zM4.5 10V6l2 2 2-2v4M11.5 6v4m-1.5-1.5 1.5 1.5 1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></span>
-            <b>保存する</b>
-            <p>設計書のマークダウン（.md）として保存します。テキストエディタで直して、「設計書から読み込む」で戻せます。</p>
-            <button class="btn" id="btnMdSave">保存</button>
-          </div>
-          <div class="act">
-            <span class="ic g"><svg viewBox="0 0 16 16"><path d="M5 5V2h9v9h-3M2 5h9v9H2z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
-            <b>処理フローの表をコピー</b>
-            <p>「| # | 要素 | 内容 |」の表だけをコピーします。今ある設計書の「処理フロー」に貼り付けるときに使います。</p>
-            <button class="btn" id="btnMd">コピー</button>
-          </div>
-        </div>
+
+      <div class="out">
+        <b>設計書（.md）を保存</b>
+        <p>画面で直した内容を、文章の設計書として保存します。「1 作り方を選ぶ」→「設計書ファイルを読み込む」で開くと続きから編集でき、別のPCや他の人にもこのファイルで渡せます。AIに「これを直して」と渡すこともできます。</p>
+        <p>※ セルの設定は設計書には入りません（このブラウザに残ります）。</p>
+        <button class="btn big" id="btnMdSave"><svg viewBox="0 0 16 16"><path d="M2 3h12v10H2zM4.5 10V6l2 2 2-2v4M11.5 6v4m-1.5-1.5 1.5 1.5 1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>設計書を保存</button>
       </div>
     </div>
   </div>
 </section>
+
 
 <section id="pane-preview" hidden>
   <div class="pv-head">
@@ -403,13 +506,6 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
 </section>
 </main>
 
-<div class="bar">
-  <div class="wrap gutter">
-    <button class="btn clear" id="btnNew" aria-haspopup="dialog" title="入力内容を消して、最初から作り直します"><svg viewBox="0 0 16 16"><path d="M3 4h10M6 4V2h4v2M4 4l1 10h6l1-10" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>クリア</button>
-    <span class="hint" id="genHint"></span>
-    <button class="btn green" id="btnGen"><svg viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5 5.5l3 5m0-5-3 5M10 6h3M10 8h3M10 10h3" stroke="currentColor" stroke-width="1.3"/></svg>Excelを作成</button>
-  </div>
-</div>
 <div id="toast" class="toast" hidden></div>
 <!-- 確認のポップアップ（ブラウザの confirm() は使えないため、画面内に出す） -->
 <div id="newConfirm" class="ov" hidden>
@@ -421,7 +517,7 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
   </div>
 </div>
 <div id="ov" class="ov" hidden><div>
-  <h3 style="font-size:15px">処理フロー（マークダウンの表）</h3>
+  <h3 style="font-size:15px" id="ovTitle">コピーする内容</h3>
   <textarea id="ovText" class="code" readonly></textarea>
   <div class="row"><button class="btn blue" id="ovCopy">コピー</button><button class="btn" id="ovClose">閉じる</button></div>
 </div></div>
@@ -443,13 +539,14 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
  *    6. DrawingML ……… 図形をExcelの描画XMLにする
  *    7. 処理内容の定型文
  *    8. Excelの組み立て
- *    9. 設計書の読み込み（マークダウン／マーメイド）
+ *    9. 設計書の読み込み（マークダウン）
  *   10. マークダウンへの書き出し
  *   11. 画面：状態の保持
  *   12. 画面：入力欄（セル設定・段カード・チェック）
  *   13. 画面：プレビュー
  *   14. 画面：ファイルの入出力
  *   15. 起動
+ *   （このスクリプトの後ろ）AI用プロンプトの本文、同梱ライブラリ JSZip
  *
  * 座標の単位はすべて EMU（Excelの内部単位。1cm = 360000、1pt = 12700）。
  * 図の横方向は「u」（基準単位）、縦方向は「v」（1段の高さの1/5）で組み立てる。
@@ -986,9 +1083,8 @@ async function buildXlsx(st, G, type = "blob") {
   return z.generateAsync({type, compression: "DEFLATE", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
 }
 /* =========================================================================
- * 9. 設計書の読み込み（マークダウン／マーメイド）
- *    マークダウン：「| # | 要素 | 内容 |」の表を1行＝1段として読む。
- *    マーメイド：矢印のつながりから並び順と分岐を推測する。
+ * 9. 設計書の読み込み（マークダウン）
+ *    「| # | 要素 | 内容 |」の表を1行＝1段として読む。AIの回答の ```markdown の囲みはあってもよい。
  * ========================================================================= */
 const mdClean = t => String(t ?? "").replace(/<br\s*\/?>/gi, "\n").replace(/\*\*(.+?)\*\*/g, "$1").replace(/`([^`]*)`/g, "$1").replace(/\\\|/g, "|").replace(/[ \t]+\n/g, "\n").trim();
 const firstBold = t => { const m = /^\s*\*\*(.+?)\*\*/.exec(String(t || "")); return m ? m[1].replace(/`/g, "").trim() : null; };
@@ -1077,8 +1173,7 @@ function parseMarkdownDoc(src) {
   const bullets = items(sec(/留意|前提|備考|補足/)).join("\n");
   const hi = lines.findIndex(l => /^\s*\|.*要素.*\|\s*$/.test(l));
   if (hi < 0) {
-    const fence = /```mermaid\s*\n([\s\S]*?)```/.exec(src);
-    if (fence) return {...parseMermaid(fence[1]), name, summary: summary || undefined, bullets: bullets || undefined, source: "マークダウン内のマーメイド"};
+    if (/^\s*(```mermaid|flowchart|graph)\b/m.test(src)) throw new Error("マーメイドのコードには対応していません。「| # | 要素 | 内容 |」の表の形式で書いてください（AIには「表の形式で出し直して」と頼みます）");
     throw new Error("「| # | 要素 | 内容 |」の表が見つかりません");
   }
   const rows = [];
@@ -1178,141 +1273,9 @@ function parseMarkdownDoc(src) {
   // 表の続きで「次の段」が無い追加分は、最後の段のあとに並べる
   return {name, summary, bullets, steps: all, source: "マークダウン", added: extra.length};
 }
-function parseMermaid(src) {
-  const lines = src.split(/\r?\n/).map(l => l.replace(/%%.*$/, "").trim()).filter(Boolean);
-  const hi = lines.findIndex(l => /^(flowchart|graph)\b/i.test(l));
-  if (hi < 0) throw new Error("flowchart（または graph）で始まるマーメイドのコードが見つかりません");
-  const nodes = {}, ids = [], edges = [], subIds = new Set(); let depth = 0;
-  const SHAPES = [[/^\(\[([\s\S]*)\]\)$/, "term"], [/^\[\[([\s\S]*)\]\]$/, "sub"], [/^\[\(([\s\S]*)\)\]$/, "cyl"], [/^\(\(+([\s\S]*?)\)+\)$/, "term"],
-    [/^\[[\/\\]([\s\S]*)[\/\\]\]$/, "para"], [/^\{\{([\s\S]*)\}\}$/, "rect"], [/^\{([\s\S]*)\}$/, "deci"], [/^\[([\s\S]*)\]$/, "rect"], [/^\(([\s\S]*)\)$/, "round"], [/^>([\s\S]*)\]$/, "rect"]];
-  const txt = t => t.trim().replace(/^"([\s\S]*)"$/, "$1").replace(/<br\s*\/?>/gi, "\n").replace(/#quot;|&quot;/g, '"')
-    .replace(/^#\d+(?:\s*[〜~\-]\s*#?\d+)?\s*/, "").split("\n").map(x => x.trim()).filter(Boolean).join("\n");
-  const node = tok => {
-    const m = /^([^\s\[\(\{>&]+)\s*([\s\S]*)$/.exec(tok.trim()); if (!m) return null;
-    const id = m[1], body = m[2].replace(/:::\w+$/, "").trim();
-    if (subIds.has(id)) return id;
-    if (!nodes[id]) { nodes[id] = {id, shape: "rect", text: id, sub: depth > 0}; ids.push(id); }
-    if (body) for (const [re, sh] of SHAPES) { const mm = re.exec(body); if (mm) { nodes[id].shape = sh; nodes[id].text = txt(mm[1]); break; } }
-    return id;
-  };
-  const EDGE = /\s*(?:--\s*"([^"]*)"\s*-->|-\.\s*"([^"]*)"\s*\.->|==\s*"([^"]*)"\s*==>|--\s*([^"\->|][^>]*?)\s*-->|-\.\s*([^".>][^>]*?)\s*\.->|(-->|-\.->|==>|---|-\.-|--o|--x)\s*(?:\|([^|]*)\|)?)\s*/g;
-  for (const l of lines.slice(hi + 1)) {
-    if (/^(classDef|class|style|linkStyle|click|direction)\b/.test(l)) continue;
-    const sg = /^subgraph\s+([^\s\[]+)?/.exec(l); if (sg) { depth++; if (sg[1]) subIds.add(sg[1]); continue; }
-    if (/^end$/.test(l)) { depth = Math.max(0, depth - 1); continue; }
-    const parts = [], ops = []; let last = 0;
-    for (const m of l.matchAll(EDGE)) { parts.push(l.slice(last, m.index)); ops.push({label: (m[1] ?? m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[7] ?? "").trim(), dashed: /-\.|\.-/.test(m[0])}); last = m.index + m[0].length; }
-    parts.push(l.slice(last));
-    const groups = parts.map(p => p.split(/\s+&\s+/).map(node).filter(Boolean));
-    ops.forEach((op, k) => { for (const a of groups[k]) for (const b of groups[k + 1] || []) edges.push({from: a, to: b, ...op}); });
-  }
-  const kind = {};
-  for (const id of ids) {
-    const n = nodes[id], t = n.text;
-    if (n.shape === "term" || (n.shape === "round" && /開始|終了|start|end/i.test(t))) kind[id] = /開始|start/i.test(t) ? "start" : /終了|^end$/i.test(t) ? "end" : "stop";
-    else if (n.shape === "deci") kind[id] = "deci";
-    else if (/非同期|Run Asynchronously/i.test(t)) kind[id] = "async";
-    else if (n.shape === "sub") kind[id] = "subflow";
-    else if (n.shape === "cyl") kind[id] = "obj";
-    else if (/(?<!グ)ループ|\bLoop\b/i.test(t)) kind[id] = /終了|end/i.test(t) ? "loop_end" : /割り当て|[＋+]/.test(t) ? "assign" : "loop_start";
-    else if (/エラー|error/i.test(t) && !/カスタムエラー/.test(t) && !edges.some(e => e.from === id && !e.dashed)) kind[id] = "err";
-    else {
-      const head = t.split("\n")[0];
-      const k = kindOfLabel(head);
-      kind[id] = k !== "assign" || /割り当て|代入/.test(head) ? k
-        : (n.shape === "para" && !/作成|更新|削除/.test(t)) || /取得|Get Records/i.test(t) ? "get"
-        : /作成|更新|削除|Create|Update|Delete/i.test(t) ? "dml" : /送信|通知|アクション|メール|Apex|Action/i.test(t) ? "action" : "assign";
-    }
-  }
-  const isEnd = id => kind[id] === "end" || kind[id] === "stop";
-  const live = id => nodes[id] && !nodes[id].sub && !subIds.has(id);
-  const outs = id => edges.filter(e => e.from === id && !e.dashed && live(e.to) && kind[e.to] !== "obj");
-  const hasIn = new Set(edges.filter(e => !e.dashed).map(e => e.to));
-  const startId = ids.find(i => kind[i] === "start") || ids.find(i => live(i) && !hasIn.has(i)) || ids[0];
-  if (!startId) throw new Error("フローの開始が見つかりません");
-  // 開始直後の「エントリ条件」と「非同期パス」は開始にまとめる
-  let async = false, entry = "";
-  const skip = new Set(), alias = new Map();
-  const follow = id => { while (alias.has(id)) id = alias.get(id); return id; };
-  for (const id of ids) {
-    if (kind[id] === "async") { async = true; skip.add(id); alias.set(id, outs(id)[0]?.to); }
-  }
-  const s0 = outs(startId).map(e => follow(e.to))[0];
-  if (s0 && kind[s0] === "deci" && outs(s0).some(e => kind[e.to] === "stop")) { entry = nodes[s0].text; skip.add(s0); alias.set(s0, follow(outs(s0).find(e => kind[e.to] !== "stop")?.to)); }
-  const succ = id => outs(id).map(e => ({...e, to: follow(e.to)})).filter(e => e.to && !isEnd(e.to) && kind[e.to] !== "err");
-  // 並び順：深さ優先の逆後順（分岐の主な先を先に、合流点は分岐のあとに）
-  const memo = {};
-  const longest = (id, stack = new Set()) => { if (memo[id] != null) return memo[id]; if (stack.has(id)) return 0; stack.add(id); const v = 1 + Math.max(0, ...succ(id).map(e => longest(e.to, stack))); stack.delete(id); return memo[id] = v; };
-  const post = [], seen = new Set(), onStack = new Set();
-  const dfs = id => {
-    seen.add(id); onStack.add(id);
-    const ch = succ(id).sort((a, b) => longest(a.to) - longest(b.to));   // 長い（主な）先を最後に訪問 → 並びでは先頭
-    for (const e of ch) if (!seen.has(e.to)) dfs(e.to);
-    onStack.delete(id); post.push(id);
-  };
-  dfs(startId);
-  const order = post.reverse().filter(id => !skip.has(id));
-  const stepOf = new Map();
-  const steps = order.map(id => {
-    const n = nodes[id], ls = n.text.split("\n"), k = kind[id] === "err" ? "assign" : kind[id];
-    const s = newStep(k);
-    switch (k) {
-      case "start": {
-        const rest = ls.filter(x => !/^(開始|start)$/i.test(x)).join(" ").replace(/開始/g, "").trim();
-        s.startType = startTypeOf(rest + entry); s.when = whenOf(rest);
-        s.obj = rest.replace(/(作成または更新|作成|更新|削除)時?|レコードトリガー|（.*?）/g, "").replace(/^[\s:：、]+|[\s:：、]+$/g, "").trim();
-        s.detail = startDetail(entry) || cut(entry.replace(/\n/g, ""), 30); break;
-      }
-      case "deci": s.text = cut(n.text.replace(/[？?]\s*$/, ""), 40); break;
-      case "get": case "dml": {
-        const body = ls.filter(x => !/^(レコードを|レコード)?(取得|作成|更新|削除)$/.test(x));
-        const [o, rest] = objAndRest(body[0] || "");
-        s.obj = o; if (k === "dml") s.op = opOf(n.text);
-        if (!o) s.text = cut(body[0] || n.text, 30);
-        s.detail = [rest === (body[0] || "") ? "" : rest, ...body.slice(1)].filter(Boolean).join("\n"); break;
-      }
-      case "loop_start": s.detail = cut(ls.filter(x => !/^ループ$/.test(x)).join(" ").replace(/^ループ\s*/, "") || n.text, 40); break;
-      case "subflow": s.obj = ls[0].replace(/\s+/g, ""); s.detail = ls.slice(1).join("\n"); break;
-      case "loop_end": case "end": break;
-      default: {
-        const b = /^(ループ[＋+]割り当て|割り当て|代入|アクション|画面|待機)$/.test(ls[0]) && ls.length > 1 ? ls.slice(1) : ls;
-        s.text = b.slice(0, 2).join("\n"); s.detail = b.slice(2).join("\n");
-        if (k === "action") s.actType = "";
-      }
-    }
-    for (const e of edges) {   // 円柱（オブジェクト）とのつながり
-      const other = e.from === id ? e.to : e.to === id ? e.from : null;
-      if (other && kind[other] === "obj") { if (k === "subflow") s.leftIn = nodes[other].text; else if (k === "get" || k === "dml") s.obj = nodes[other].text.split("\n")[0]; }
-    }
-    if (FAULT_KINDS.includes(k)) s.fault = edges.some(e => e.from === id && kind[e.to] === "err") ? "notify" : "";
-    stepOf.set(id, s);
-    return s;
-  });
-  // 行き先
-  const endStep = newStep("end");
-  order.forEach((id, k) => {
-    const s = stepOf.get(id);
-    const os = outs(id).map(e => ({...e, to: follow(e.to)})).filter(e => e.to && kind[e.to] !== "obj");
-    const toOf = t => kind[t] === "end" ? endStep.id : kind[t] === "stop" ? "__end" : kind[t] === "err" ? null : stepOf.get(t)?.id ?? null;
-    const nextId = k + 1 < order.length ? stepOf.get(order[k + 1]).id : endStep.id;
-    const norm = t => (t === nextId ? "" : t);
-    if (s.kind === "deci") {
-      s.outcomes = os.filter(e => kind[e.to] !== "err").map(e => ({id: uid(), label: shortLabel(e.label) || "", to: norm(toOf(e.to) ?? "")}));
-      s.outcomes.sort((a, b) => (a.to === "" ? -1 : 0) - (b.to === "" ? -1 : 0));
-      if (s.outcomes.length < 2) s.outcomes.push({id: uid(), label: "デフォルト結果", to: "__end"});
-    } else if (s.kind !== "end") {
-      const e = os.find(e => kind[e.to] !== "err");
-      s.next = e ? norm(toOf(e.to) ?? "") : norm(endStep.id);
-    }
-  });
-  steps.push(endStep);
-  return {steps, source: "マーメイド"};
-}
 function parseDesignText(src) {
   src = String(src || "").replace(/^﻿/, "");
   if (!src.trim()) throw new Error("読み込む内容がありません");
-  const t = src.trim();
-  if (/^(flowchart|graph)\b/i.test(t) || (/^```mermaid/.test(t) && !/\|.*要素.*\|/.test(t))) return parseMermaid(t.replace(/^```mermaid\s*\n?/, "").replace(/```\s*$/, ""));
   return parseMarkdownDoc(src);
 }
 /* =========================================================================
@@ -1349,13 +1312,33 @@ function exportMarkdown(st, guide) {
   const rows = S.map((s, k) => {
     const i = k + 1;
     let d = s.auto ? genDesc(s, S).split("\n").filter(l => !/^(その後、|エラーの場合は|・)/.test(l)).join("\n") : (s.desc || "");
-    if (s.kind === "deci") d = `**${one(shapeText(s)) || "判断"}**` + (s.outcomes || []).map((o, m) => `\n・${o.label || (m === s.outcomes.length - 1 ? "デフォルト結果" : "条件")} → ${route(o.to, i)}`).join("");
-    else if (s.kind === "subflow") d = `**${sfFull(s.obj)}**` + (s.auto ? (s.detail ? "\n" + s.detail : "") : "\n" + d.replace(/^.*?を呼び出す。\n?/, ""));
-    else if (s.kind === "action" && s.actType) d = `**${s.actType}**：${d}`;
+    // 手で書いた（読み込んだ）文から、行き先の書き方を外す。行き先は下で今の段番号から書き直す（読み込み直しても同じになるように）
+    let notes = [], tailNote = "";   // 「→ 4へ（補足）」の（補足）部分。結果・パスの順に残し、行き先を書き直したあとに付け直す
+    if (!s.auto) {
+      const ls = d.split("\n").filter(l => !/^(フォールトパスなし|エラーの場合は、No\.\d+へ進む)$/.test(l.trim()) && !(s.store && /^格納先：/.test(l)));
+      const keep = [];
+      for (const l of ls) { const m = /^・.*?→\s*(?:No\.)?(?:\d+へ|終了)(.*)$/.exec(l); if (m && ["deci", "start"].includes(s.kind)) notes.push(m[1]); else keep.push(l); }
+      if (keep.length && !["deci", "start"].includes(s.kind)) {
+        const last = keep.length - 1, m = /\s*→\s*(?:\d+へ|終了)\s*(（[^）]*）)?\s*$/.exec(keep[last]);
+        if (m) { keep[last] = keep[last].slice(0, m.index); tailNote = m[1] || ""; }
+      }
+      d = keep.join("\n");
+    }
+    if (s.kind === "deci") {
+      const t = one(shapeText(s)) || "判断", line0 = !s.auto ? d.split("\n")[0].trim() : "";
+      const head = !line0 ? `**${t}**` : line0.startsWith(t) ? `**${t}**${line0.slice(t.length)}` : `**${line0}**`;   // 図形の文字だけを太字にし、（判定：…）などは後ろに残す
+      d = head + (s.outcomes || []).map((o, m) => `\n・${o.label || (m === s.outcomes.length - 1 ? "デフォルト結果" : "条件")} → ${route(o.to, i)}${notes[m] || ""}`).join("");
+    }
+    else if (s.kind === "subflow") {
+      const rest = d.replace(/^.*?を呼び出す。\n?/, "").split("\n").filter((l, m) => !(m === 0 && [s.obj, sfFull(s.obj)].includes(l.trim()))).join("\n");
+      d = `**${sfFull(s.obj)}**` + (s.auto ? (s.detail ? "\n" + s.detail : "") : (rest ? "\n" + rest : ""));
+    }
+    else if (s.kind === "action" && s.actType) d = d.startsWith(s.actType) ? `**${s.actType}**${d.slice(s.actType.length)}` : `**${s.actType}**：${d}`;
     if (s.kind === "loop_start" && s.auto) d = one(s.detail);
-    if (s.kind === "start" && s.usePaths && s.paths?.length) d += s.paths.map(p => `\n・${p.label || "パス"} → ${route(p.to, i)}`).join("");
+    if (s.kind === "start" && s.usePaths && s.paths?.length) d += s.paths.map((p, m) => `\n・${p.label || "パス"} → ${route(p.to, i)}${notes[m] || ""}`).join("");
     if (s.kind === "assign" && s.store) d += `\n格納先：${String(s.store).replace(/\n/g, "／")}`;
-    if (!["deci", "end"].includes(s.kind) && !(s.kind === "start" && s.usePaths) && s.next && !(no(s.next) === i + 1)) d += ` → ${route(s.next, i)}`;
+    if (!["deci", "end"].includes(s.kind) && !(s.kind === "start" && s.usePaths) && s.next && !(no(s.next) === i + 1)) d += ` → ${route(s.next, i)}${tailNote}`;
+    else if (tailNote) d += tailNote;
     if (FAULT_KINDS.includes(s.kind)) { if (!s.fault) d += "\nフォールトパスなし"; else if (s.fault !== "notify") d += `\nエラーの場合は、No.${no(s.fault)}へ進む`; }
     if (s.kind === "end" || s.kind === "loop_end") d = s.auto ? "—" : d;
     return `| ${i} | ${elOf(s)} | ${cell(d.trim()) || "—"} |`;
@@ -1368,17 +1351,6 @@ function exportMarkdown(st, guide) {
     "## 処理フロー", "| # | 要素 | 内容 |", "|---|---|---|", ...rows, "",
     "## 留意する前提", list(st.bullets) || "- ", "",
     ...(guide ? [MD_GUIDE] : [])].join("\n");
-}
-function markdownTable() {
-  const cell = t => String(t || "").replace(/\|/g, "｜").replace(/\n/g, "<br>");
-  const rows = state.steps.map((s, k) => {
-    const name = kindShort(s.kind);
-    const shape = ["start", "end", "loop_end", "rollback"].includes(s.kind) ? "" : (s.kind === "subflow" ? sfFull(s.obj) : s.kind === "loop_start" ? s.detail : shapeText(s).replace(/\n/g, ""));
-    let d = s.kind === "deci" || s.kind === "start" ? genDesc(s, state.steps) : descOf(s, state.steps);
-    if (!s.auto && s.kind !== "deci") { const r = genDesc(s, state.steps).split("\n").filter(l => /^(その後、|エラーの場合は、No\.)/.test(l)); if (r.length) d += "\n" + r.join("\n"); }
-    return `| ${k + 1} | ${cell(shape ? `${name}：${shape}` : name)} | ${cell(d)} |`;
-  });
-  return ["| # | 要素 | 内容 |", "|---|---|---|", ...rows].join("\n");
 }
 /* =========================================================================
  * 11. 画面：状態の保持
@@ -1406,7 +1378,7 @@ function sampleSteps() {
   st[10].next = "__end";
   return st;
 }
-const baseState = () => ({v: 5, sample: false, file: "", name: "", summary: "", bullets: "", grid: {...GRID_DEFAULT}, steps: [newStep("start"), newStep("end")]});
+const baseState = () => ({v: 5, sample: false, file: "", name: "", summary: "", bullets: "", grid: {...GRID_DEFAULT}, steps: [newStep("start"), newStep("end")], mode: "ai", ai: {}});
 function sampleState() {
   return {...baseState(), sample: true, steps: sampleSteps(), name: "商談_成立時フォローアップ作成フロー",
     summary: "商談のフェーズが「Closed Won」に更新されたときに実行するレコードトリガーフロー。\n取引先の取引先責任者ごとにフォローアップのToDoを作成し、商談所有者へカスタム通知を送る。\n取引先責任者がいない場合は、商談所有者へ登録を依頼するメールを送る。",
@@ -1430,7 +1402,7 @@ function upgradeStep(s, all) {
 let state;
 try { state = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { state = null; }
 if (!state || !Array.isArray(state.steps)) state = sampleState();
-state = {...baseState(), ...state, grid: {...GRID_DEFAULT, ...state.grid}};
+state = {...baseState(), ...state, grid: {...GRID_DEFAULT, ...state.grid}, ai: {...(state.ai || {})}};
 state.steps = state.steps.map(s => upgradeStep(s));
 let saveT;
 function persist() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }, 300); }
@@ -1465,7 +1437,7 @@ function renderGridInfo() {
   } else { $("sumW").textContent = $("sumH").textContent = $("sumD").textContent = ""; }
   $("gridWarn").innerHTML = [...errs, ...w].map(t => `<p class="warn">${h(t)}</p>`).join("");
   $("gridSum").textContent = errs.length ? "入力を直してください" : `幅 ${G.colW}×${G.flowCols}列・高さ ${G.rowH}pt×${G.rows}行`;
-  if (errs.length) $("gridBox").open = true;
+  if (errs.length) $("settings").open = true;
 }
 
 /* ---- 段カード ---- */
@@ -1727,7 +1699,7 @@ $("zoomOut").onclick = () => { zoom = Math.max(0.2, +(zoom - 0.1).toFixed(1)); r
 
 let pvT;
 function changed() {
-  persist(); updateWarnings(); renderGridInfo();
+  persist(); updateWarnings(); renderGridInfo(); updateProgress();
   clearTimeout(pvT); pvT = setTimeout(renderPreview, 150);
   updateGen();
 }
@@ -1776,79 +1748,132 @@ function updateGen() {
   const {g, per} = validate(), {errs} = parseGrid(state.grid);
   $("btnGen").disabled = errs.length > 0;
   const nw = g.length + Object.keys(per).length;
-  $("genHint").textContent = errs.length ? "「1段分のセル」を直してください" : nw ? `注意が${nw}件あります（そのままでも作成できます）` : `${state.steps.length}段のフローを出力します`;
+  $("genHint").textContent = errs.length ? "「セルの設定」を直してください" : nw ? `${state.steps.length}個の処理を出力します（「2 確認・修正」に注意が${nw}件あります。そのままでも作成できます）` : `${state.steps.length}個の処理を出力します`;
 }
 $("btnGen").onclick = async () => {
   const {G, errs} = parseGrid(state.grid); if (errs.length) return;
-  const b = $("btnGen"); b.disabled = true; b.textContent = "作成中…";
+  const b = $("btnGen"), label = b.innerHTML; b.disabled = true; b.textContent = "作成中…";
   try {
     const blob = await buildXlsx(state, G);
     const base = safeName(state.file || `${state.name || "フロー"}_フロー設計書`);
     await saveFile(/\.xlsx$/i.test(base) ? base : base + ".xlsx", blob);
+    excelMade = true; updateProgress();
   } catch (e) { console.error(e); toast(`作成できませんでした：${e.message}`); }
-  b.textContent = "Excelを作成"; updateGen();
+  b.innerHTML = label; updateGen();
 };
 
-/* ---- 設計書の読み込み ---- */
+/* ---- 進み具合（① 作り方 → ② 確認・修正 → ③ 出力） ---- */
+let excelMade = false;   // このページを開いてからExcelを作ったか
+function updateProgress() {   // 終わった手順のタブに ✓ を付ける
+  const has = !state.sample && (state.steps.length > 2 || !!state.name);   // 何か作り始めている（最初に出ているサンプルは数えない）
+  const done = [has, has && !validate().g.length, excelMade];
+  ["pg1", "pg2", "pg3"].forEach((id, i) => $(id).classList.toggle("done", done[i]));
+}
+let curStep = 1;
+function goStep(n) {   // 手順のタブを切り替える
+  curStep = n;
+  [1, 2, 3].forEach(i => { $(`sec${i}`).hidden = i !== n; $(`pg${i}`).setAttribute("aria-selected", String(i === n)); });
+  if (!$("pane-edit").offsetParent) $("tab-edit").click();   // スマホでプレビューを見ていたら編集に戻す
+  $("progress").scrollIntoView({block: "nearest"});
+}
+document.querySelectorAll("#progress button").forEach(b => b.onclick = () => goStep(+b.dataset.step));
+document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => goStep(+b.dataset.go));
+function showResult() {   // 読み込めたら「2 確認・修正」へ。スマホはまずプレビューで図を見せる
+  goStep(2);
+  if (window.matchMedia("(max-width:1099px)").matches) { $("tab-preview").click(); window.scrollTo({top: 0}); }
+}
+
+/* ---- 作り方の切り替え ---- */
+function setMode(m) {
+  state.mode = m;
+  document.querySelectorAll(".mode").forEach(b => b.setAttribute("aria-selected", String(b.dataset.mode === m)));
+  ["ai", "file", "manual"].forEach(k => { $(`panel-${k}`).hidden = k !== m; });
+  $("impMsg").innerHTML = ""; persist();
+}
+document.querySelectorAll(".mode").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+
+/* ---- 設計書の読み込み（AIの回答・ファイル・サンプル共通） ---- */
 function runImport(text, from) {
   try {
     const r = parseDesignText(text);
-    if (!r.steps.length) throw new Error("段が1つも読み取れませんでした");
+    if (!r.steps.length) throw new Error("処理が1つも読み取れませんでした");
     const before = JSON.stringify(state);
     state.steps = r.steps.map(s => upgradeStep(s)); state.sample = false;
     if (r.name) state.name = r.name;
-    if (r.summary !== undefined) state.summary = r.summary;   // マークダウンは空でも上書き。マーメイドには概要がないので残す
+    if (r.summary !== undefined) state.summary = r.summary;   // 空でも上書きする
     if (r.bullets !== undefined) state.bullets = r.bullets;
     bindGlobals(); renderSteps(); changed();
-    const kinds = r.steps.reduce((a, s) => (a[kindShort(s.kind)] = (a[kindShort(s.kind)] || 0) + 1, a), {});
-    $("impMsg").innerHTML = `<p class="note">${h(from || r.source)}から ${r.steps.length} 段を読み込みました（${h(Object.entries(kinds).map(([k, v]) => `${k}${v}`).join("、"))}）。`
-      + (r.added ? `表に行のない分岐先の処理を ${r.added} 段、最後に追加しました。` : "") + "図形の種類と行き先は推測なので、プレビューで確認してください。</p>";
-    toast(`${r.steps.length}段を読み込みました`, "元に戻す", () => { state = JSON.parse(before); bindGlobals(); renderSteps(); changed(); $("impMsg").innerHTML = ""; $("st3").classList.remove("done"); });
+    $("impMsg").innerHTML = `<p class="ok-msg">✓ ${h(from)}から ${r.steps.length} 個の処理を読み込みました。`
+      + (r.added ? `（表に行のない分岐先の処理を ${r.added} 個、最後に追加しました）` : "") + "プレビューで矢印のつながりを確認してください。</p>";
+    toast(`図を作りました（${r.steps.length}個の処理）`, "元に戻す", () => { state = JSON.parse(before); bindGlobals(); renderSteps(); changed(); $("impMsg").innerHTML = ""; });
+    showResult();
     return true;
   } catch (e) { $("impMsg").innerHTML = `<p class="warn">読み込めませんでした：${h(e.message)}</p>`; return false; }
 }
-// 読み込みは「① テンプレート → ② ファイルを選ぶ（または貼り付け） → ③ 反映する」の順。選んだだけでは上書きしない
-let impFrom = "";   // 読み込み元の表示名（ファイル名）
-function setImportReady() {
-  const has = !!$("impText").value.trim();
-  $("btnImport").disabled = !has;
-  $("st2").classList.toggle("done", has);
-  $("st3").classList.remove("done");
+
+/* ---- AIに作ってもらう ---- */
+// 入力欄（data-ai）と、AIに送る文での見出し。★は必須
+const AI_FIELDS = [["obj", "★対象オブジェクト"], ["trigger", "★起動のきっかけ"], ["want", "★やりたいこと"], ["branch", "条件で分けたいこと"],
+  ["fail", "うまくいかないときの扱い"], ["fields", "使う項目"], ["sub", "使うサブフロー"], ["memo", "決まっていること／気になること"], ["file", "ファイル名"]];
+// 記入例：サンプルフロー（商談の成立時にToDoを作成）を、この入力欄で頼む場合の書き方。入力欄の薄い文字にも使う
+const AI_EXAMPLE = {
+  obj: "商談",
+  trigger: "フェーズが「Closed Won（成立）」に更新されたとき",
+  want: "取引先の取引先責任者ごとに、フォローアップのToDoを作成する。作り終わったら、商談の所有者にカスタム通知で知らせる",
+  branch: "メールアドレスが登録されていない取引先責任者には、ToDoを作成しない",
+  fail: "取引先責任者が1人もいない場合は、商談の所有者に「取引先責任者を登録してください」とメールで知らせる",
+  fields: "フェーズ（StageName）、取引先（AccountId）、取引先責任者のメール（Email）",
+  sub: "なし",
+  memo: "ToDoの件名は「フォローアップ連絡」。カスタム通知の種類は事前に作っておく",
+  file: "01_商談_成立時フォローアップ作成",
+};
+const AI_PLACE = {sub: "なし（共通の通知処理があれば、その名前と渡す値を書く）"};   // 記入例と違う薄い文字にしたい欄だけ
+function bindAi() { document.querySelectorAll("[data-ai]").forEach(el => { el.value = state.ai[el.dataset.ai] ?? ""; el.placeholder = "例：" + (AI_PLACE[el.dataset.ai] || AI_EXAMPLE[el.dataset.ai] || ""); }); }
+$("btnAiEx").onclick = () => {
+  const before = {...state.ai};
+  state.ai = {...AI_EXAMPLE}; bindAi(); persist(); $("aiMsg").innerHTML = "";
+  toast("記入例を入れました。自分のフローに合わせて書き換えてください", "元に戻す", () => { state.ai = before; bindAi(); persist(); });
+};
+document.querySelectorAll("[data-ai]").forEach(el => el.addEventListener("input", () => { state.ai[el.dataset.ai] = el.value; persist(); }));
+// AIに送る文 ＝ 指示文（ページ末尾の aiPromptText）＋「今回作成するフロー」
+function aiMessage() {
+  const lines = AI_FIELDS.filter(([k]) => (state.ai[k] || "").trim()).map(([k, label]) => `・${label.replace("★", "")}：${state.ai[k].trim().replace(/\n/g, " ")}`);
+  return $("aiPromptText").textContent.trim() + "\n\n# 今回作成するフロー\n" + lines.join("\n") + "\n";
 }
+async function copyText(text, okMsg, title) {
+  try { await navigator.clipboard.writeText(text); toast(okMsg); return true; }
+  catch (e) { $("ovTitle").textContent = title; $("ovText").value = text; $("ov").hidden = false; $("ovText").select(); return false; }
+}
+$("btnAiCopy").onclick = async () => {
+  const miss = AI_FIELDS.filter(([k, l]) => l.startsWith("★") && !(state.ai[k] || "").trim()).map(([, l]) => l.replace("★", ""));
+  if (miss.length) { $("aiMsg").innerHTML = `<p class="warn">「${h(miss.join("」「"))}」を入力してください。</p>`; return; }
+  $("aiMsg").innerHTML = "";
+  if (await copyText(aiMessage(), "コピーしました。AIの新しいチャットに貼り付けて送ってください", "AIに送る文"))
+    $("aiMsg").innerHTML = `<p class="ok-msg">✓ コピーしました。AIの新しいチャットに貼り付けて送り、返ってきた回答を下の C に貼り付けます。</p>`;
+};
+$("aiAnswer").addEventListener("input", () => { $("btnAiImport").disabled = !$("aiAnswer").value.trim(); });
+$("btnAiImport").onclick = () => runImport($("aiAnswer").value, "AIの回答");
+// AI用プロンプト（指示文だけ）：Gem などに登録したい人向け
+$("btnAi").onclick = () => saveFile("Salesforceフロー設計書_AI用プロンプト.md", new Blob([$("aiPromptText").textContent.trim() + "\n"], {type: "text/markdown"}));
+
+/* ---- 設計書ファイルを読み込む ---- */
+let impFrom = "";   // 読み込み元の表示名（ファイル名）。選んだだけでは上書きしない
+const setImportReady = () => { $("btnImport").disabled = !$("impText").value.trim(); };
 $("impFile").addEventListener("change", async ev => {
   const f = ev.target.files[0]; if (!f) return;
   $("impText").value = await f.text(); impFrom = f.name;
   $("impName").textContent = f.name; $("impMsg").innerHTML = "";
   setImportReady(); ev.target.value = "";
 });
-$("impText").addEventListener("input", () => { impFrom = ""; $("impName").textContent = "貼り付けたテキスト"; setImportReady(); });
-$("btnImport").onclick = () => { if (runImport($("impText").value, impFrom)) $("st3").classList.add("done"); };
-// サンプルフロー：記入例のマークダウンをテキストボックスに入れて、そのまま反映する（直後なら元に戻せる）
-$("btnSample").onclick = () => {
-  $("impText").value = exportMarkdown(sampleState(), false);
-  impFrom = "サンプルフロー"; $("impName").textContent = "サンプルフロー";
-  setImportReady();
-  if (runImport($("impText").value, impFrom)) $("st3").classList.add("done");
-};
+$("impText").addEventListener("input", () => { impFrom = "貼り付けた設計書"; $("impName").textContent = "貼り付けたテキスト"; setImportReady(); });
+$("btnImport").onclick = () => runImport($("impText").value, impFrom || "設計書");
+$("btnTpl").onclick = () => saveFile("Salesforceフロー設計書_テンプレート.md", new Blob([exportMarkdown(sampleState(), true)], {type: "text/markdown"}));
 
-/* ---- 定義の保存・読込・表 ---- */
-$("btnSaveJson").onclick = () => {
-  const {sample, ...rest} = state;
-  saveFile(safeName(`${state.name || "フロー"}_定義.json`), new Blob([JSON.stringify({format: "sf-flow-sekkeisho/5", ...rest}, null, 2)], {type: "application/json"}));
-};
-$("jsonFile").addEventListener("change", async ev => {
-  const f = ev.target.files[0]; if (!f) return;
-  try {
-    const d = JSON.parse(await f.text());
-    if (!Array.isArray(d.steps)) throw new Error("段の定義がありません");
-    const b = baseState();
-    state = {...b, name: d.name ?? d.fills?.[0]?.value ?? "", summary: d.summary ?? "", bullets: d.bullets ?? d.notes ?? "", file: d.file ?? "",
-      grid: {...GRID_DEFAULT, ...(d.grid || {})}, steps: d.steps.map(s => upgradeStep(s))};
-    bindGlobals(); renderSteps(); changed(); toast(`${f.name} を読み込みました`);
-  } catch (e) { toast(`読み込めませんでした：${e.message}`); }
-  ev.target.value = "";
-});
-// クリア：下の帯のボタン → 確認のポップアップ（はい／いいえ）
+/* ---- 画面で1つずつ作る ---- */
+$("btnSample").onclick = () => runImport(exportMarkdown(sampleState(), false), "サンプル");
+$("btnBlank").onclick = () => showNewConfirm(true);
+
+// クリア：「2 確認・修正」のボタン（または「空の状態から始める」）→ 確認のポップアップ（はい／いいえ）
 function showNewConfirm(open) {
   $("newConfirm").hidden = !open;
   $("btnNew").setAttribute("aria-expanded", String(open));
@@ -1861,28 +1886,200 @@ $("newYes").onclick = () => {
   const before = JSON.stringify(state);
   Object.assign(state, {steps: [newStep("start"), newStep("end")], name: "", summary: "", bullets: "", file: "", sample: false});
   showNewConfirm(false);
-  bindGlobals(); renderSteps(); changed();
+  bindGlobals(); renderSteps(); changed(); goStep(2);
   toast("クリアしました", "元に戻す", () => { state = JSON.parse(before); bindGlobals(); renderSteps(); changed(); });
 };
 $("newConfirm").addEventListener("keydown", ev => {
   if (ev.key === "Escape") showNewConfirm(false);
   if (ev.key === "Tab") { ev.preventDefault(); (document.activeElement === $("newNo") ? $("newYes") : $("newNo")).focus(); }   // 2つのボタンの間だけを移動
 });
-$("btnTpl").onclick = () => { $("st1").classList.add("done"); return saveFile("Salesforceフロー設計書_テンプレート.md", new Blob([exportMarkdown(sampleState(), true)], {type: "text/markdown"})); };
 $("btnMdSave").onclick = () => saveFile(safeName(`${state.name || "フロー"}.md`), new Blob([exportMarkdown(state, false)], {type: "text/markdown"}));
-$("btnMd").onclick = async () => {
-  const t = markdownTable();
-  try { await navigator.clipboard.writeText(t); toast("処理フローの表をコピーしました"); }
-  catch (e) { $("ovText").value = t; $("ov").hidden = false; $("ovText").select(); }
-};
 $("ovCopy").onclick = async () => { try { await navigator.clipboard.writeText($("ovText").value); toast("コピーしました"); $("ov").hidden = true; } catch (e) { $("ovText").select(); toast("選択しました。Ctrl+C（⌘+C）でコピーしてください"); } };
 $("ovClose").onclick = () => $("ov").hidden = true;
 /* =========================================================================
  * 15. 起動
  * ========================================================================= */
 /* ---- 起動 ---- */
-bindGlobals(); renderSteps(); renderGridInfo(); renderPreview(); updateGen();
+bindGlobals(); bindAi(); setMode(state.mode || "ai"); goStep(1); renderSteps(); renderGridInfo(); renderPreview(); updateGen(); updateProgress();
 
+</script>
+<!-- =========================================================================
+  AI用プロンプトの本文（「AI用プロンプト」ボタンでこのままダウンロードされる）
+  Salesforceの仕様・廃止予定の機能が変わったら、ここを書き換える。
+  ========================================================================= -->
+<script type="text/plain" id="aiPromptText">
+あなたはSalesforceのフロー設計に詳しいシニアコンサルタントです。
+これから私がチャットで「作りたいフローの条件」を伝えるので、そのたびにフロー設計書を1つ、下のルールと「お手本」と同じ書式のマークダウンで作成してください。
+このmdは「Salesforceフロー設計書作成ツール」に読み込んでExcelのフロー図にするため、書式のルールを必ず守ってください。
+設計の中身は、Salesforceの最新仕様とガバナ制限を考慮した、本番で使える設計にしてください。
+
+# 進め方
+- このメッセージの最後に「# 今回作成するフロー」として条件が書いてあれば、すぐにその設計書を作ってください。
+- 条件が書いていなければ、「準備できました。作りたいフローの条件を教えてください。」とだけ返し、次のメッセージから、私が条件を伝えるたびに設計書を1つ作ってください。
+- 対象オブジェクト・起動のきっかけ・やりたいこと のどれかがわからず設計できないときだけ、作る前に質問してください（質問は3つまで）。それ以外の不明点は質問せず、設計書に「（要確認）」と書いて進めてください。
+- 私が「〜を直して」と言ったら、直した設計書を全文で出し直してください。
+- 添付ファイル（要件・項目一覧など）があれば、その内容をもとに書いてください。
+
+# 出力のしかた
+- 出力は、mdファイルの中身を ```markdown と ``` で囲んだコードブロック1つにしてください。
+- マーメイドなどの図のコードや、表を使わない箇条書きでは出さないでください。処理フローは必ず下の「| # | 要素 | 内容 |」の表で書きます（図はツールが表から描きます）。
+- コードブロックの後に、「設計のポイント」を3行以内で書いてください（なぜその起動方式・構成にしたか、ガバナ制限上の注意など）。
+- 出典番号（[1] など）や引用の記号は、コードブロックの中に入れないでください。
+- 私の指示や添付資料に書かれていないことは推測で埋めず、「（要確認）」と書いてください。
+- 項目のAPI名がわからないときは、それらしい名前に「__c」を付けて、「留意する前提」に「項目のAPI名は仮」と書いてください。
+
+# ファイルの構成（この順番・この見出しで書く）
+1. `# <番号>_<オブジェクト名>_<処理名>` （1行目。ファイル名と同じにする）
+2. `## 概要` … 箇条書きで次を書く
+   - 対象オブジェクト：〜
+   - 起動方式：次のどれか1つをそのまま書く
+     「レコードトリガーフロー（保存後）」「レコードトリガーフロー（保存前）」「スケジュールトリガーフロー」「プラットフォームイベント」「自動起動フロー」「画面フロー」
+   - 起動条件：〜
+   - 実行タイミング：〜（必要なら）
+3. `## 処理概要` … 箇条書きで3行程度。お客様（Salesforce未経験者）が読んでわかる言葉で書く
+4. `## 処理フロー` … 下の表の形で書く
+5. 表の下に、補足を「- 」の箇条書きで書く（任意）
+6. `## 留意する前提` … 箇条書き。決定事項は「（決定）」、未確定は「（要確認）」を付ける
+
+# 処理フローの表のルール
+表の形：
+| # | 要素 | 内容 |
+|---|---|---|
+| 1 | 開始 | 〜 |
+
+- 1行が1つの処理（Excelの1段）になります。# は上から 1, 2, 3… と振ります。
+- No.1 は必ず「開始」、どこかに必ず「終了」の行を置きます。
+- 「要素」に書ける種類は次だけです：
+  開始／画面／アクション／サブフロー／割り当て／決定／ループ／ループ終了／コレクションソート／コレクションフィルター／変換／待機／レコードを取得／レコードを作成／レコードを更新／レコードを削除／ロールバック／カスタムエラー／終了
+- 図形に出す短い名前を付けるときは「割り当て：ユーザーIdを通知先に追加」のように「：」の後ろに書きます（決定・開始・終了・ループ・ループ終了・サブフローには付けない）。
+- 内容の中で改行するときは <br> を使います。表の中に「|」は使いません。変数名や数式は `バッククォート` で囲みます。
+
+## 行き先（矢印）の書き方
+- 何も書かなければ、次の行（No.+1）へ進みます。
+- 別の行へ進むときは、内容の最後に「→ 8へ」と書きます。
+- そこで終わるときは、内容の最後に「→ 終了」と書きます。
+- 分岐した先の処理（エラー時の通知など）は、表の最後に行を追加して、そこへ「→ 11へ」のように進めます。追加した行の最後にも「→ 終了」「→ 6へ」などの行き先を書きます。
+
+## 要素ごとの書き方
+- 開始：起動のきっかけを1文で書きます。即時パス・非同期パス・スケジュール済みパスを分けるときは
+  「〜したときに処理を開始する<br>・即時パス → 終了（処理なし）<br>・非同期パス → 2へ」の形で書きます。
+- 決定：1行目に判断する内容を **太字** で書き、判定に使う項目は「（判定：`{!$Record.項目__c}`）」として1行目に添えます。
+  続けて結果を「<br>・設定あり → 3へ<br>・未設定 → 11へ」の形で1つずつ書きます。
+  ・結果の名前（「→」の左）は「設定あり」「1件以上」「0件」「それ以外」のような短い言葉だけにし、かっこや変数名を入れないでください。
+  ・最後の結果がデフォルト結果になります。結果は2つ以上書きます。
+- ループ：「ループ」の行と「ループ終了」の行で、繰り返す処理を挟みます。ループ終了の内容は「—」で構いません。
+- レコードを取得／作成／更新／削除：内容の1行目を「`API名`：オブジェクト名／条件／並び順／件数／取得項目」のように「／」区切りで書きます。
+- 割り当て：何に何を入れるかを書きます。格納先を図に出すときは「格納先：コレクション／「通知先ユーザー」」と書きます。
+- サブフロー：内容の1行目にサブフロー名を **太字** で書き、続けて「<br>・入力 ＝ 値」の形で受け渡す値を書きます。
+- アクション：メール送信などの標準アクション名を **太字** で書き、送信元・宛先・件名・本文を書きます。
+- 待機：スケジュール済みパスの待ち時間を表すときに使い、内容に「フォールトパスなし」を入れます。
+- 失敗したとき（フォールトパス）：何も書かなければ図に「エラー通知 → 終了」が描かれます。別の行へ進めるときは「エラーの場合は、No.9へ進む」、描かないときは「フォールトパスなし」と書きます。
+
+# Salesforceの設計ルール（設計書の中身に反映する）
+最新仕様は Winter '27 リリース（2026年10月）時点を基準にします。あなたの知識が古い可能性がある機能や上限値は、Salesforce公式ドキュメント（help.salesforce.com、developer.salesforce.com）で確認できる場合は確認し、確認できない場合は「（要確認：最新リリースノートで確認）」と書いてください。
+
+## 起動方式の選び方
+- 同じレコードの項目だけを更新する → レコードトリガーフロー（保存前）。DMLを使わず高速。ただし保存前では関連レコードの更新・メール送信・サブフロー・アクションは使えません。
+- 関連レコードの作成・更新、通知、メール送信 → レコードトリガーフロー（保存後）。
+- 通知・メール・外部連携など、保存を遅らせたくない処理や失敗しても保存を戻したくない処理 → 保存後の「非同期パス」に置きます（即時パスは処理なし）。
+- 「〇日後に」「期限の〇日前に」→ 保存後の「スケジュール済みパス」。スケジュール済みパスは条件を満たさなくなると取り消されますが、念のため実行時に決定要素で条件を再判定します。
+- 毎日・毎週の定時処理 → スケジュールトリガーフロー。対象レコードは開始要素の条件でできるだけ絞ります。
+- 複数のフローから使う共通処理 → 自動起動フロー（サブフロー）にまとめます。
+- 開始要素の実行条件は、原則「条件の要件を満たすように更新されたときのみ」にして、同じ更新での再起動や二重通知を防ぎます。
+- 同じオブジェクト・同じ条件で複数のフローが起動する場合は、トリガー順序（10、20…）を概要に書きます。
+
+## ガバナ制限（1トランザクションあたり）
+- SOQL（レコードを取得、レコードの更新・削除で条件を使う場合）：100回
+- 取得できるレコード：合計 50,000件
+- DML（レコードを作成・更新・削除）：150回
+- DMLで処理できるレコード：合計 10,000件
+- CPU時間：同期 10秒／非同期 60秒、ヒープ：同期 6MB／非同期 12MB
+- レコードトリガーフローは最大200件ずつまとめて実行されます（データローダ等の一括更新）。1件ずつではなく「200件同時に動いても制限に収まるか」で設計します。
+- 呼び出し元（Apex・他のフロー）と同じトランザクションで動く場合は、制限を共有します。
+
+## 設計のルール
+- ループの中に「レコードを取得」「レコードを作成・更新・削除」「メール送信」「サブフロー」を置かない。取得はループの前、更新はループ内でコレクション変数に追加してループの後で1回にまとめます。
+- 件数の判定（0件／1件以上）を、取得の直後に決定要素で行います。
+- 取得は必要な項目・件数だけにし、条件で絞ります。1件だけ使う場合は「最初のレコードのみ」にします。
+- ID・メールアドレス・通知種別などを直書きしない。カスタム表示ラベル、カスタムメタデータ、DeveloperNameでの取得を使います。
+- 失敗時の扱いを必ず決めます。基本はフォールトパスなし（標準のフローエラーメールで運用者に通知）。業務上、利用者に知らせる必要がある場合だけ、フォールトパスで通知やカスタムエラーを描きます。
+- 保存後の即時パスで失敗すると、元の保存もロールバックされます。戻してよいかを「留意する前提」に書きます。
+- メール送信は、1通あたりの宛先（To・CC・BCCの合計）と、組織の1日の送信上限を考慮し、「留意する前提」に書きます（上限値は「要確認」でよい）。
+- 実行ユーザー（誰の権限で動くか）が結果に影響する場合は「留意する前提」に書きます。Winter '27 では、どの起動方法でも実行ユーザーの権限・項目レベルセキュリティ・共有を適用する「ユーザーコンテキストで実行」設定があります。
+- スケジュールトリガーフローで大量のレコードを扱う場合、Winter '27 の「動的バッチサイズ」（制限エラー時にバッチサイズを半分にして再試行）を使うか検討し、「留意する前提」に書きます。
+- 「留意する前提」には、ガバナ制限の見積もり（このフローでSOQL・DMLを何回使うか）を1行書きます。
+
+## 今後なくなる機能は使わない
+- 廃止・サポート終了が発表されている機能は、設計に使わないでください。既存の設定に頼る設計（「既存のワークフローで〜する」など）にもしないでください。
+- 2026年11月時点でわかっている主なもの：
+  - ワークフロールール、プロセスビルダー：2025年12月31日でサポート終了。新規作成はできません。自動化はすべてフローで設計します（プロセスビルダーの「スケジュール済みアクション」は、フローのスケジュール済みパスに置き換えます）。
+  - Salesforce Functions：2025年1月に廃止済み。Apex・フロー・External Services などで代替します。
+  - 標準ボリュームのプラットフォームイベント：段階的に廃止。使う場合は高ボリュームのプラットフォームイベントにします。
+  - 古いAPIバージョン（21.0〜30.0は2025年夏に廃止済み）：フローやApexのAPIバージョンは、作成時点の最新にします。
+  - SOAP API の login() による認証：Summer '27 で廃止予定。外部システムとの連携は OAuth 認証を前提にします。
+- ベータ版・パイロット版の機能（例：Winter '27 のフローテストモード（ベータ））は、本番の処理には使わないでください。使う場合は「留意する前提」に「ベータ機能のため要確認」と書きます。
+- 同じことができる新しい機能がある場合は、新しいほうを使います（例：画面のコンポーネントは Aura や Visualforce より Lightning Web コンポーネント）。
+- 上の一覧以外にも、あなたが廃止予定と知っている機能や、使おうとしている機能が廃止予定かもしれない場合は、Salesforce公式の「機能の廃止（Feature Retirements）」情報で確認してください。確認できない場合は使わずに代わりの方法で設計し、どうしても使う場合は「（要確認：廃止予定の可能性）」と書いてください。
+
+# お手本（この書式をまねる。内容はまねない）
+「===お手本ここから===」と「===お手本ここまで===」の間がmdファイル1つ分です。
+
+===お手本ここから===
+# 01_商談_受注時の関係者通知
+
+## 概要
+- 対象オブジェクト：商談（Opportunity）
+- 起動方式：レコードトリガーフロー（保存後）
+- 起動条件：フェーズが「Closed Won」に更新されたとき（作成時は起動しない）
+- 実行タイミング：保存後。即時パスは処理なし、非同期パスに通知処理をすべて配置
+
+## 処理概要
+- 商談のフェーズが「Closed Won（受注）」に更新された際の実行フロー。
+- 商談に登録された商談チームのメンバーに、受注したことを自動で通知する。
+- 商談チームが登録されていない場合は、商談の所有者に通知する。
+
+## 処理フロー
+| # | 要素 | 内容 |
+|---|---|---|
+| 1 | 開始 | 商談のフェーズが「Closed Won」に更新されたときに処理を開始する<br>・即時パス → 終了（処理なし）<br>・非同期パス → 2へ |
+| 2 | レコードを取得：商談チームを取得 | `Get_TeamMembers`：商談チームメンバー（OpportunityTeamMember）／`OpportunityId = {!$Record.Id}`／全件／取得項目：UserId |
+| 3 | 決定 | **商談チームの取得件数**（判定：`Get_TeamMembers`）<br>・1件以上 → 4へ<br>・0件 → 10へ |
+| 4 | ループ | `Loop_Member`：商談チームメンバーの件数分 |
+| 5 | 割り当て：ユーザーIdを通知先に追加 | `{!Loop_Member.UserId}` を `varT_NotifyUserIds` に追加（DMLなし）<br>格納先：コレクション／「通知先ユーザー」 |
+| 6 | ループ終了 | — |
+| 7 | 割り当て：件名・本文を設定 | `varT_Title` ＝ 受注のお知らせ、`varT_Body` ＝ 商談名・金額・完了予定日を記載（文面は要確認） |
+| 8 | アクション：カスタム通知を送信 | **カスタム通知を送信**：通知種別 ＝ 受注通知（要確認）、受信者Id ＝ `varT_NotifyUserIds`、タイトル ＝ `varT_Title`、本文 ＝ `varT_Body`、対象Id ＝ `{!$Record.Id}` |
+| 9 | 終了 | — |
+| 10 | 割り当て：所有者を通知先に設定 | `varT_NotifyUserIds` に `{!$Record.OwnerId}` を追加 → 7へ |
+
+- No.10 は、No.3 で商談チームが0件のときに進む処理。
+- 失敗したときは、Salesforce標準のフローエラーメールで運用担当に通知する（図では「エラー通知 → 終了」と表記）
+
+## 留意する前提
+- 再通知：フェーズが一度戻り、再度「Closed Won」になった場合は再度通知される。許容するか（要確認）
+- 無効なユーザー：商談チームに無効なユーザーがいる場合の扱い（要確認）
+- ガバナ制限：SOQL 1回（No.2）、DML 0回。ループ内に SOQL・DML・送信はない。200件同時に起動しても制限内
+- カスタム通知種別の名前は仮
+===お手本ここまで===
+
+# 最後に自分で確認すること
+- No.1 が「開始」で、「終了」の行がある
+- 「→ 〜へ」の番号が、表に実際にある行を指している
+- どの行も、開始から矢印をたどって到達できる
+- 「ループ」と「ループ終了」の数が同じ
+- 決定の結果が2つ以上あり、結果の名前にかっこや変数名が入っていない
+- ループの中に、レコードの取得・作成・更新・削除、メール送信、サブフローがない
+- 起動方式で使えない要素を使っていない（保存前でDML・アクション・サブフローを使っていない など）
+- 「留意する前提」に、ガバナ制限の見積もりと、失敗時の扱いが書いてある
+- 廃止予定・サポート終了の機能（ワークフロールール、プロセスビルダーなど）や、ベータ版の機能を使っていない
+
+# 条件の伝え方（このメッセージの最後、またはこの後のチャットで送る内容の例）
+・ファイル名：02_〇〇_〇〇通知
+・対象オブジェクト：〇〇
+・起動のきっかけ：ステータスが「〇〇」に更新されたとき
+・やりたいこと：〜の場合は〜に通知する。〜がない場合は〜する
+・分岐やエラー時の扱い：〜の場合は〜する
+（足りない項目があっても、上の「進め方」に従って進めてください）
 </script>
 <!-- =========================================================================
   同梱ライブラリ：JSZip 3.10.1（Excel＝ZIP形式のファイルを組み立てるために使用）
