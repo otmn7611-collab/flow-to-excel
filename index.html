@@ -183,6 +183,14 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
 .sec-h p{grid-column:2/-1;margin:0;font-size:12px;color:var(--muted)}
 
 /* ---------- ③ 出力 ---------- */
+.names{display:grid;gap:12px}
+.names h3{font-size:12.5px;color:var(--muted);font-weight:500;margin-bottom:6px}
+.name-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 0}
+.name-row code{font-family:var(--f-mono);font-size:12.5px;word-break:break-all}
+.name-row input{padding:6px 8px;font-family:var(--f-mono);font-size:12.5px}
+.name-row .chip{white-space:nowrap}
+.name-row.done code{text-decoration:line-through;color:var(--muted)}
+@media (max-width:520px){.name-row{grid-template-columns:minmax(0,1fr) auto}.name-row input{grid-column:1/-1}}
 .out{border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;display:grid;gap:6px;align-content:space-between;background:var(--bg)}
 .out b{font-size:14px}
 .out p{margin:0;font-size:12px;color:var(--muted)}
@@ -434,6 +442,14 @@ label.c input{width:18px;height:18px;accent-color:var(--sf-blue)}
     <div class="card-h"><h2>備考</h2><small>表の下に1行ずつ（空欄なら出しません）</small></div>
     <div class="card-b">
       <textarea id="g-bullets" rows="4" data-g="bullets" placeholder="1行が1項目になります"></textarea>
+    </div>
+  </div>
+  <div class="card" id="namesCard">
+    <div class="card-h"><h2>仮の名前を置き換える</h2><small>項目・オブジェクトのAPI名など</small></div>
+    <div class="card-b">
+      <p class="note">設計書の中から、Salesforceの設定画面で作る名前（<code>〜__c</code>・<code>〜__r</code>・<code>$Label.〜</code>）を探して並べています。実際の名前がわかったものだけ右に入力して「置き換える」を押してください。入力した名前は覚えておくので、ほかのフローを読み込んだときも同じ名前が入った状態になります。<code>varT_〜</code> のようなフローの中で作る名前や、<code>Id</code>・<code>Email</code> などの標準項目は、そのままで使えるので出しません。</p>
+      <div id="namesList" class="names"></div>
+      <div class="row"><button class="btn blue" id="btnNames" disabled>置き換える</button><span class="note" id="namesHint"></span></div>
     </div>
   </div>
   <button class="btn blue big" data-go="3">次へ：Excelに出力 →</button>
@@ -1780,7 +1796,7 @@ $("zoomOut").onclick = () => { zoom = Math.max(0.2, +(zoom - 0.1).toFixed(1)); r
 let pvT;
 function changed() {
   persist(); updateWarnings(); renderGridInfo(); updateProgress();
-  clearTimeout(pvT); pvT = setTimeout(renderPreview, 150);
+  clearTimeout(pvT); pvT = setTimeout(() => { renderPreview(); if (!$("sec2").hidden) renderNames(); }, 150);
   updateGen();
 }
 
@@ -1853,6 +1869,7 @@ let curStep = 1;
 function goStep(n) {   // 手順のタブを切り替える
   curStep = n;
   [1, 2, 3].forEach(i => { $(`sec${i}`).hidden = i !== n; $(`pg${i}`).setAttribute("aria-selected", String(i === n)); });
+  if (n === 2) renderNames();
   if (!$("pane-edit").offsetParent) $("tab-edit").click();   // スマホでプレビューを見ていたら編集に戻す
   $("progress").scrollIntoView({block: "nearest"});
 }
@@ -1862,6 +1879,64 @@ function showResult() {   // 読み込めたら「2 確認・修正」へ。ス�
   goStep(2);
   if (window.matchMedia("(max-width:1099px)").matches) { $("tab-preview").click(); window.scrollTo({top: 0}); }
 }
+
+/* ---- 仮の名前の置き換え ----
+ *  設計書の文字の中から、Salesforce の設定で作る名前（〜__c・〜__r・$Label.〜）を探して一覧にし、実際の名前にまとめて置き換える。
+ *  入力した対応はこのブラウザに覚えておき、ほかのフローでも使う（NAMES_KEY）。 */
+const NAMES_KEY = STORE_KEY + "-names";
+let nameMap = {};
+try { nameMap = JSON.parse(localStorage.getItem(NAMES_KEY)) || {}; } catch (e) { nameMap = {}; }
+const saveNames = () => { try { localStorage.setItem(NAMES_KEY, JSON.stringify(nameMap)); } catch (e) {} };
+const NAME_RE = /\$Label\.[A-Za-z][A-Za-z0-9_]*|[A-Za-z0-9_\u3005\u3040-\u30FF\u3400-\u9FFF\uFF66-\uFF9F]+__[cr](?![A-Za-z0-9_])/g;
+const PARTICLE = /^.*[のはがをにでと](?=[^のはがをにでと]*__[cr]$)/;   // 「親の資材担当者__c」→「資材担当者__c」（文に続けて書かれた場合）
+const STEP_TEXT_KEYS = ["text", "desc", "detail", "obj", "store", "leftIn", "actType"];
+function eachText(fn) {   // 置き換えの対象：段の文字（図形・処理内容・条件のラベル）、概要、備考
+  state.steps.forEach(s => {
+    STEP_TEXT_KEYS.forEach(k => { if (typeof s[k] === "string") s[k] = fn(s[k]); });
+    (s.outcomes || []).forEach(o => { o.label = fn(o.label || ""); });
+    (s.paths || []).forEach(q => { q.label = fn(q.label || ""); });
+  });
+  state.summary = fn(state.summary || ""); state.bullets = fn(state.bullets || "");
+}
+function findNames() {
+  const count = new Map();
+  const real = new Set(Object.values(nameMap).flatMap(v => [v, v.replace(/__c$/, "__r")]));   // 置き換え済みの実際の名前は出さない
+  eachText(t => { for (const m of String(t).matchAll(NAME_RE)) { const k = m[0].replace(PARTICLE, ""); if (!real.has(k)) count.set(k, (count.get(k) || 0) + 1); } return t; });
+  return count;
+}
+// __r は、元の __c に実際の名前が入っていれば、それに合わせた名前を候補にする
+const suggest = k => nameMap[k] ?? (k.endsWith("__r") && nameMap[k.slice(0, -1) + "c"] ? nameMap[k.slice(0, -1) + "c"].replace(/__c$/, "__r") : "");
+function renderNames() {
+  const count = findNames(), box = $("namesList");
+  const groups = [["オブジェクト・項目（__c）", k => k.endsWith("__c")], ["参照項目からたどる名前（__r）", k => k.endsWith("__r")], ["カスタム表示ラベル（$Label）", k => k.startsWith("$Label.")]];
+  if (!count.size) { box.innerHTML = `<p class="note">置き換えが必要な名前は見つかりませんでした。</p>`; $("btnNames").disabled = true; $("namesHint").textContent = ""; return; }
+  box.innerHTML = groups.map(([title, f]) => {
+    const ks = [...count.keys()].filter(f).sort((a, b) => count.get(b) - count.get(a) || a.localeCompare(b, "ja"));
+    return ks.length ? `<div><h3>${h(title)}</h3>${ks.map(k => `<div class="name-row"><code>${h(k)}</code><span class="arr">→</span><input type="text" data-name="${h(k)}" value="${h(suggest(k))}" placeholder="実際の名前" aria-label="${h(k)} の実際の名前" spellcheck="false" autocomplete="off"><span class="chip num">${count.get(k)}か所</span></div>`).join("")}</div>` : "";
+  }).join("");
+  updateNamesBtn();
+}
+function updateNamesBtn() {
+  const rows = [...document.querySelectorAll("[data-name]")].filter(el => el.value.trim() && el.value.trim() !== el.dataset.name);
+  $("btnNames").disabled = !rows.length;
+  $("namesHint").textContent = rows.length ? `${rows.length}個の名前を置き換えます` : "実際の名前を入力すると置き換えられます";
+}
+$("namesList").addEventListener("input", ev => {
+  const el = ev.target; if (!el.dataset.name) return;
+  const v = el.value.trim(); if (v) nameMap[el.dataset.name] = v; else delete nameMap[el.dataset.name];
+  saveNames(); updateNamesBtn();
+});
+$("btnNames").onclick = () => {
+  const pairs = [...document.querySelectorAll("[data-name]")].map(el => [el.dataset.name, el.value.trim()]).filter(([k, v]) => v && v !== k)
+    .sort((a, b) => b[0].length - a[0].length);   // 長い名前から（「取引先__c」より「取引先責任者__c」を先に）
+  if (!pairs.length) return;
+  const before = JSON.stringify(state);
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const res = pairs.map(([k, v]) => [new RegExp(esc(k) + "(?![A-Za-z0-9_])", "g"), v]);
+  eachText(t => res.reduce((a, [re, v]) => a.replace(re, v), String(t)));
+  bindGlobals(); renderSteps(); changed();
+  toast(`${pairs.length}個の名前を置き換えました`, "元に戻す", () => { state = JSON.parse(before); bindGlobals(); renderSteps(); changed(); });
+};
 
 /* ---- 作り方の切り替え ---- */
 function setMode(m) {
