@@ -858,7 +858,15 @@ function drawFlow(steps, ctx, g, startId = 1) {
     const sides = outs.filter(x => x.kind === "side");
     const ends = outs.filter(x => x.kind === "end");
     // ここで終了（小さな「終了」を横に）
-    if (ends.length) {
+    const downs = outs.filter(x => x.kind === "down" || x.kind === "jump");
+    if (ends.length && !downs.length && (sides.length > 0 || (s.kind === "assign" && s.store) || (FAULT_KINDS.includes(s.kind) && s.fault === "notify"))) {
+      // 右がふさがっていて下へ進む線もないときは、図形の下に「終了」を描く
+      const y1 = b[3], y2 = e.y(i, 4, 133350), ew = 1.6;   // 「エラー通知 → 終了」の終了と同じ大きさ
+      e.line([[c, y1], [c, y2]], attachable(s.kind) || s.kind === "deci" ? [ids[i], BOTTOM] : null, null);
+      e.shape([e.X(c, -ew), y2, e.X(c, ew), e.y(i, 5, 160000)], "ellipse", ["終了"]);
+      const lab = ends.map(x => x.label).filter(Boolean).join("／");
+      if (lab) e.text([e.X(c, 0.3), y1, e.X(c, 6), y2 + Math.round(0.4 * ctx.v(i))], lab, "l");
+    } else if (ends.length) {
       const busy = sides.length > 0 || (s.kind === "assign" && s.store) || (FAULT_KINDS.includes(s.kind) && s.fault === "notify");
       const sd = busy ? -1 : 1, x1 = e.edgeX(b, s.kind, ym, sd), x2 = e.X(x1, 3 * sd);
       e.line([[x1, ym], [x2, ym]], s.kind === "deci" || attachable(s.kind) ? [ids[i], sd > 0 ? RIGHT : LEFT] : null, null);
@@ -867,7 +875,7 @@ function drawFlow(steps, ctx, g, startId = 1) {
       if (lab) e.text(sd > 0 ? [e.X(x1, 0.1), e.y(i, 1, 160020), e.X(x1, 2.9), e.y(i, 2, 106679)] : [e.X(x1, -2.9), e.y(i, 1, 160020), e.X(x1, -0.1), e.y(i, 2, 106679)], lab, sd > 0 ? "l" : "r");
     }
     // 下へ（次の段・飛び越し）
-    for (const x of outs.filter(x => x.kind === "down" || x.kind === "jump")) {
+    for (const x of downs) {
       const j = x.to, xc = Math.round(e.cx(x.corr)), tp = topPt(j);
       const pts = [[c, b[3]]];
       if (xc !== c) pts.push([c, e.y(i, 4, 200000)], [xc, e.y(i, 4, 200000)]);
