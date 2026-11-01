@@ -656,7 +656,8 @@ function graphOf(steps) {
     if (FAULT_KINDS.includes(s.kind) && s.fault && s.fault !== "notify") list.push({to: tgt(s.fault, i), label: "エラー", type: "fault"});
     out[i] = list;
   });
-  // レーン：前の段から下へ続くなら同じ列。飛び越す線は空いている列（通り道）を確保する
+  const {best, main} = mainLine(out, n);
+  // レーン：本線（正常系）は同じ列をまっすぐ下へ。本線から外れる線は右の列（通り道）を確保する
   const lane = [], pref = [], res = [], back = [];
   const free = (L, r1, r2) => !res.some(x => x.L === L && x.r1 <= r2 && r1 <= x.r2);
   for (let i = 1; i <= n; i++) {
@@ -666,7 +667,9 @@ function graphOf(steps) {
       if (e.to === 0) continue;
       if (e.to === -1) { e.kind = "end"; continue; }
       if (e.to <= i) { e.kind = "back"; back.push(e); e.from = i; continue; }
-      const side = e.type === "fault" || (["out", "path"].includes(e.type) && !(e.to === i + 1 && !out[i].some(x => x !== e && x.to === i + 1 && x.m < e.m)));
+      const onMain = main.has(i) && e.type !== "fault";
+      const side = onMain ? e.to !== best[i]   // 本線の段：本線の次へ進む線だけがまっすぐ。それ以外は右へそれる
+        : e.type === "fault" || (["out", "path"].includes(e.type) && !(e.to === i + 1 && !out[i].some(x => x !== e && x.to === i + 1 && x.m < e.m)));
       if (e.to === i + 1 && !side) { e.corr = L; e.kind = "down"; pref[i + 1] = Math.min(pref[i + 1] ?? Infinity, L); continue; }
       let c = side ? L + 1 : L;
       while (!free(c, i + 1, e.to - 1)) c++;
@@ -680,7 +683,20 @@ function graphOf(steps) {
   const corrMax = Math.max(0, ...out.flat().filter(e => e && e.corr != null).map(e => e.corr));
   const lanes = Math.max(1, corrMax + 1, ...lane.filter(x => x != null).map(x => x + 1));
   const stepLanes = new Set(lane.filter(x => x != null));
-  return {n, out, lane, lanes, stepLanes, nBack: back.length, idx};
+  return {n, out, lane, lanes, stepLanes, nBack: back.length, idx, main};
+}
+// 本線（正常系）：開始から、いちばん多くの段を通って下へ進む道筋。同じ長さなら上の段を選ぶ。
+// out[i] の to：段の番号（1〜）、-1 ＝ その場で終了、0 ＝ なし。上へ戻る線（ループなど）は数えない。
+function mainLine(out, n) {
+  const len = [], best = [];
+  for (let i = n; i >= 1; i--) {
+    let bl = 0, bj = 0;
+    for (const e of out[i] || []) if (e.to > i && e.type !== "fault" && (len[e.to] > bl || (len[e.to] === bl && e.to < bj))) { bl = len[e.to]; bj = e.to; }
+    len[i] = 1 + bl; best[i] = bj;
+  }
+  const main = new Set();
+  for (let i = n ? 1 : 0; i && !main.has(i); i = best[i]) main.add(i);
+  return {best, main};
 }
 
 /* =========================================================================
@@ -1273,6 +1289,69 @@ function parseMarkdownDoc(src) {
   // 表の続きで「次の段」が無い追加分は、最後の段のあとに並べる
   return {name, summary, bullets, steps: all, source: "マークダウン", added: extra.length};
 }
+/* 読み込んだ段の並べ直し
+ *  AI や人が書く表は「本線 → 終了 → 分岐した先の処理」の順が多く、そのまま描くと線が下まで回り込む。そこで
+ *  ① 本線の最後以外の「終了」の段は、そこへ進む線を「その場で終了」にして段を消す
+ *  ② 本線の終了より後ろに書かれた処理（横道）は、分かれた段のすぐ後ろへ移す（右の列に描かれ、本線はまっすぐ下へ進む）
+ *  ③ 内容・概要・備考の「→ 12へ」「No.12」を新しい番号に書き換える
+ *  すでにこの並びの表（このツールで保存した設計書など）は、何も変わらない。 */
+function arrangeSteps(steps, texts) {
+  const origNo = new Map(steps.map((s, k) => [s.id, k + 1]));
+  // 「次の段（空欄）」を段の id で書いておく（並べ替えても行き先が変わらないように）
+  const fix = (to, k) => to || (k + 1 < steps.length ? steps[k + 1].id : "__end");
+  steps.forEach((s, k) => {
+    if (s.kind === "end") return;
+    s.next = fix(s.next, k);
+    (s.outcomes || []).forEach(o => { o.to = fix(o.to, k); });
+    (s.paths || []).forEach(q => { q.to = fix(q.to, k); });
+  });
+  // ① 本線の最後の「終了」以外の終了の段を消す
+  let g = graphOf(steps);
+  const last = [...g.main].pop(), keepEnd = steps[last - 1]?.kind === "end" ? steps[last - 1].id : null;
+  const drop = new Set(steps.filter(s => s.kind === "end" && s.id !== keepEnd).map(s => s.id));
+  if (drop.size) {
+    const red = to => (drop.has(to) ? "__end" : to);
+    steps.forEach(s => { s.next = red(s.next); s.fault = red(s.fault); (s.outcomes || []).forEach(o => { o.to = red(o.to); }); (s.paths || []).forEach(q => { q.to = red(q.to); }); });
+    steps = steps.filter(s => !drop.has(s.id));
+    g = graphOf(steps);
+  }
+  // ② 本線の終了より後ろにある横道を、つながっている段ごとのかたまりにして、分かれた段のすぐ後ろへ移す
+  //    （本線の途中にある横道はそのまま。並べ直した表をもう一度読み込んでも変わらないように）
+  const n = steps.length, out = g.out, lastMain = Math.max(...g.main), blocks = [];
+  const order = Array.from({length: lastMain}, (_, k) => k + 1);
+  for (let i = lastMain + 1; i <= n; i++) {
+    const b = blocks[blocks.length - 1], prev = b && b[b.length - 1];
+    if (prev === i - 1 && (out[prev] || []).some(e => e.to === i)) b.push(i); else blocks.push([i]);
+  }
+  for (let guard = 0; blocks.length && guard < 60; guard++) {
+    for (let b = 0; b < blocks.length; b++) {
+      const inB = new Set(blocks[b]), srcs = [];
+      for (let i = 1; i <= n; i++) if (!inB.has(i) && (out[i] || []).some(e => inB.has(e.to))) srcs.push(i);
+      const placed = srcs.filter(i => order.includes(i));
+      if (placed.length < srcs.length && guard < 59) continue;   // 分かれる元が先に並んでから置く
+      const pos = placed.length ? Math.max(...placed.map(i => order.indexOf(i))) + 1 : order.length;
+      order.splice(pos, 0, ...blocks[b]); blocks.splice(b--, 1);
+    }
+  }
+  const res = order.map(i => steps[i - 1]);
+  // 行き先が「すぐ下の段」なら空欄（次の段）に戻す
+  res.forEach((s, k) => {
+    const nx = res[k + 1]?.id, un = to => (to && to === nx ? "" : to);
+    s.next = un(s.next); (s.outcomes || []).forEach(o => { o.to = un(o.to); }); (s.paths || []).forEach(q => { q.to = un(q.to); });
+  });
+  // ③ 文中の番号を書き換える
+  const newNo = new Map(res.map((s, k) => [s.id, k + 1])), idOf = new Map([...origNo].map(([id, no]) => [no, id]));
+  const changed = drop.size > 0 || res.some((s, k) => origNo.get(s.id) !== k + 1);
+  const no = N => { const id = idOf.get(+N); return !id ? null : drop.has(id) ? "終了" : newNo.get(id); };
+  const renum = t => !changed || !t ? t : String(t)
+    .replace(/→\s*(\d+)\s*へ/g, (m, N) => { const v = no(N); return v == null ? m : v === "終了" ? "→ 終了" : `→ ${v}へ`; })
+    .replace(/No\.\s*(\d+(?:\s*[・、,～〜\-]\s*\d+)*)/g, (m, list) => "No." + list.replace(/\d+/g, N => { const v = no(N); return v == null || v === "終了" ? N : v; }));
+  if (changed) {
+    res.forEach(s => { s.desc = renum(s.desc); });
+    for (const k of Object.keys(texts)) texts[k] = renum(texts[k]);
+  }
+  return {steps: res, changed, dropped: drop.size};
+}
 function parseDesignText(src) {
   src = String(src || "").replace(/^﻿/, "");
   if (!src.trim()) throw new Error("読み込む内容がありません");
@@ -1364,18 +1443,19 @@ function sampleSteps() {
     S("start", {obj: "商談", when: "更新時", detail: "フェーズ「Closed Won」"}),                                            // 1
     S("get", {obj: "取引先責任者", text: "取引先責任者を取得", detail: "取引先責任者．取引先ID＝商談．取引先ID（全件。取得項目：Id, Name, Email）"}), // 2
     S("deci", {text: "取引先責任者の件数"}),                                                                                 // 3
-    S("loop_start", {detail: "取引先責任者のレコード件数分"}),                                                               // 4
-    S("deci", {text: "メールアドレスの有無"}),                                                                               // 5
-    S("assign", {text: "ToDoを\nコレクションに追加", detail: "ToDo（件名：フォローアップ連絡、名前：{!Loop_Contact.Id}、関連先：{!$Record.Id}）を、レコードコレクション変数「作成するToDo（varR_Tasks）」に追加する", store: "コレクション\n「作成するToDo」"}), // 6
-    S("loop_end", {}),                                                                                                       // 7
-    S("dml", {op: "作成", obj: "ToDo", text: "ToDoをまとめて作成", detail: "レコードコレクション変数「作成するToDo（varR_Tasks）」をループの外で1回だけ作成する"}), // 8
-    S("action", {actType: "カスタム通知を送信", text: "商談所有者へ\nカスタム通知を送信", detail: "「カスタム通知を送信」アクションで、商談所有者（{!$Record.OwnerId}）へ商談の成立を通知する"}), // 9
-    S("end", {}),                                                                                                            // 10
-    S("action", {actType: "メールを送信", text: "商談所有者へ\nメールで連絡", detail: "取引先責任者が登録されていないため、商談所有者へ登録を依頼するメールを送る"}), // 11
+    S("action", {actType: "メールを送信", text: "商談所有者へ\nメールで連絡", detail: "取引先責任者が登録されていないため、商談所有者へ登録を依頼するメールを送る"}), // 4
+    S("loop_start", {detail: "取引先責任者のレコード件数分"}),                                                               // 5
+    S("deci", {text: "メールアドレスの有無"}),                                                                               // 6
+    S("assign", {text: "ToDoを\nコレクションに追加", detail: "ToDo（件名：フォローアップ連絡、名前：{!Loop_Contact.Id}、関連先：{!$Record.Id}）を、レコードコレクション変数「作成するToDo（varR_Tasks）」に追加する", store: "コレクション\n「作成するToDo」"}), // 7
+    S("loop_end", {}),                                                                                                       // 8
+    S("dml", {op: "作成", obj: "ToDo", text: "ToDoをまとめて作成", detail: "レコードコレクション変数「作成するToDo（varR_Tasks）」をループの外で1回だけ作成する"}), // 9
+    S("action", {actType: "カスタム通知を送信", text: "商談所有者へ\nカスタム通知を送信", detail: "「カスタム通知を送信」アクションで、商談所有者（{!$Record.OwnerId}）へ商談の成立を通知する"}), // 10
+    S("end", {}),                                                                                                            // 11
   ];
-  st[2].outcomes = [{id: uid(), label: "1件以上", to: ""}, {id: uid(), label: "0件", to: st[10].id}];
-  st[4].outcomes = [{id: uid(), label: "あり", to: ""}, {id: uid(), label: "なし", to: st[6].id}];
-  st[10].next = "__end";
+  // 取引先責任者が0件のときは、すぐ下（No.4）でメールを送ってその場で終了。1件以上はループ（No.5）へ
+  st[2].outcomes = [{id: uid(), label: "1件以上", to: st[4].id}, {id: uid(), label: "0件", to: ""}];
+  st[3].next = "__end";
+  st[5].outcomes = [{id: uid(), label: "あり", to: ""}, {id: uid(), label: "なし", to: st[7].id}];
   return st;
 }
 const baseState = () => ({v: 5, sample: false, file: "", name: "", summary: "", bullets: "", grid: {...GRID_DEFAULT}, steps: [newStep("start"), newStep("end")], mode: "ai", ai: {}});
@@ -1798,13 +1878,17 @@ function runImport(text, from) {
     const r = parseDesignText(text);
     if (!r.steps.length) throw new Error("処理が1つも読み取れませんでした");
     const before = JSON.stringify(state);
-    state.steps = r.steps.map(s => upgradeStep(s)); state.sample = false;
+    const texts = {summary: r.summary, bullets: r.bullets};
+    const a = arrangeSteps(r.steps.map(s => upgradeStep(s)), texts);   // 本線をまっすぐ、分岐した先は横へ並べ直す
+    state.steps = a.steps; state.sample = false;
     if (r.name) state.name = r.name;
-    if (r.summary !== undefined) state.summary = r.summary;   // 空でも上書きする
-    if (r.bullets !== undefined) state.bullets = r.bullets;
+    if (texts.summary !== undefined) state.summary = texts.summary;   // 空でも上書きする
+    if (texts.bullets !== undefined) state.bullets = texts.bullets;
     bindGlobals(); renderSteps(); changed();
     $("impMsg").innerHTML = `<p class="ok-msg">✓ ${h(from)}から ${r.steps.length} 個の処理を読み込みました。`
-      + (r.added ? `（表に行のない分岐先の処理を ${r.added} 個、最後に追加しました）` : "") + "プレビューで矢印のつながりを確認してください。</p>";
+      + (r.added ? `（表に行のない分岐先の処理を ${r.added} 個追加しました）` : "")
+      + (a.changed ? "本線がまっすぐ下へ進み、分岐した先が横に並ぶように、処理の順番を入れ替えました（No.が元の設計書と変わっています）。" : "")
+      + "プレビューで矢印のつながりを確認してください。</p>";
     toast(`図を作りました（${r.steps.length}個の処理）`, "元に戻す", () => { state = JSON.parse(before); bindGlobals(); renderSteps(); changed(); $("impMsg").innerHTML = ""; });
     showResult();
     return true;
@@ -1957,8 +2041,8 @@ bindGlobals(); bindAi(); setMode(state.mode || "ai"); goStep(1); renderSteps(); 
 ## 行き先（矢印）の書き方
 - 何も書かなければ、次の行（No.+1）へ進みます。
 - 別の行へ進むときは、内容の最後に「→ 8へ」と書きます。
-- そこで終わるときは、内容の最後に「→ 終了」と書きます。
-- 分岐した先の処理（エラー時の通知など）は、表の最後に行を追加して、そこへ「→ 11へ」のように進めます。追加した行の最後にも「→ 終了」「→ 6へ」などの行き先を書きます。
+- そこで終わるときは、内容の最後に「→ 終了」と書きます。「終了」の行は、本線（正常に進む流れ）の最後に1つだけ置きます。途中で終わる分岐は、「終了」の行へ飛ばさずに「→ 終了」と書きます（図ではその場に「終了」が描かれます）。
+- 表は、本線（正常に進む流れ）が上から順番にまっすぐ並ぶように書きます。分岐した先の処理（エラー時や対象がないときの処理など）は、分かれた決定のすぐ後の行に書き、決定から「→ 4へ」のように進めます。その行の最後には、本線に戻る「→ 8へ」か、「→ 終了」を書きます（図では、本線はまっすぐ下へ、分岐した先は右の列に描かれます）。
 
 ## 要素ごとの書き方
 - 開始：起動のきっかけを1文で書きます。即時パス・非同期パス・スケジュール済みパスを分けるときは
@@ -2047,16 +2131,16 @@ bindGlobals(); bindAi(); setMode(state.mode || "ai"); goStep(1); renderSteps(); 
 |---|---|---|
 | 1 | 開始 | 商談のフェーズが「Closed Won」に更新されたときに処理を開始する<br>・即時パス → 終了（処理なし）<br>・非同期パス → 2へ |
 | 2 | レコードを取得：商談チームを取得 | `Get_TeamMembers`：商談チームメンバー（OpportunityTeamMember）／`OpportunityId = {!$Record.Id}`／全件／取得項目：UserId |
-| 3 | 決定 | **商談チームの取得件数**（判定：`Get_TeamMembers`）<br>・1件以上 → 4へ<br>・0件 → 10へ |
-| 4 | ループ | `Loop_Member`：商談チームメンバーの件数分 |
-| 5 | 割り当て：ユーザーIdを通知先に追加 | `{!Loop_Member.UserId}` を `varT_NotifyUserIds` に追加（DMLなし）<br>格納先：コレクション／「通知先ユーザー」 |
-| 6 | ループ終了 | — |
-| 7 | 割り当て：件名・本文を設定 | `varT_Title` ＝ 受注のお知らせ、`varT_Body` ＝ 商談名・金額・完了予定日を記載（文面は要確認） |
-| 8 | アクション：カスタム通知を送信 | **カスタム通知を送信**：通知種別 ＝ 受注通知（要確認）、受信者Id ＝ `varT_NotifyUserIds`、タイトル ＝ `varT_Title`、本文 ＝ `varT_Body`、対象Id ＝ `{!$Record.Id}` |
-| 9 | 終了 | — |
-| 10 | 割り当て：所有者を通知先に設定 | `varT_NotifyUserIds` に `{!$Record.OwnerId}` を追加 → 7へ |
+| 3 | 決定 | **商談チームの取得件数**（判定：`Get_TeamMembers`）<br>・1件以上 → 5へ<br>・0件 → 4へ |
+| 4 | 割り当て：所有者を通知先に設定 | `varT_NotifyUserIds` に `{!$Record.OwnerId}` を追加 → 8へ |
+| 5 | ループ | `Loop_Member`：商談チームメンバーの件数分 |
+| 6 | 割り当て：ユーザーIdを通知先に追加 | `{!Loop_Member.UserId}` を `varT_NotifyUserIds` に追加（DMLなし）<br>格納先：コレクション／「通知先ユーザー」 |
+| 7 | ループ終了 | — |
+| 8 | 割り当て：件名・本文を設定 | `varT_Title` ＝ 受注のお知らせ、`varT_Body` ＝ 商談名・金額・完了予定日を記載（文面は要確認） |
+| 9 | アクション：カスタム通知を送信 | **カスタム通知を送信**：通知種別 ＝ 受注通知（要確認）、受信者Id ＝ `varT_NotifyUserIds`、タイトル ＝ `varT_Title`、本文 ＝ `varT_Body`、対象Id ＝ `{!$Record.Id}` |
+| 10 | 終了 | — |
 
-- No.10 は、No.3 で商談チームが0件のときに進む処理。
+- No.4 は、No.3 で商談チームが0件のときに進む処理。
 - 失敗したときは、Salesforce標準のフローエラーメールで運用担当に通知する（図では「エラー通知 → 終了」と表記）
 
 ## 留意する前提
